@@ -18,24 +18,21 @@ ggm1 <- ggm1 %>%
 
 # Obtain network:
 net1 <- getmatrix(ggm1, "omega")
-sigma <- getmatrix(ggm1, "sigma")
 
-eigen(sigma)$values
-eigen(identity(nrow(net1)) - net1)$values
-
-eigen(diag(nrow(net1)) - net1)$values
-
-
-
-
-
-ordinal <- FALSE
-nLevels <-  5
-skewFactor <- 1
-type <- "uniform"
-missing <- 0
-mod <- net1
-n <- 500
+# eigen(diag(nrow(net1)) - net1)$values
+#
+#
+#
+#
+#
+# ordinal <- FALSE
+# nLevels <-  5
+# skewFactor <- 1
+# type <- "uniform"
+# missing <- 0
+# mod <- net1
+# n <- 500
+# propPos <- 0.8
 
 # simulate data with seeds
 ggm_dt_sim <- function(net, iter = 200, n = 500, ordinal = FALSE, nLevels = 4, skewFactor = 1, type =
@@ -54,14 +51,12 @@ ggm_dt_sim <- function(net, iter = 200, n = 500, ordinal = FALSE, nLevels = 4, s
     # set.seed(seed)
 
     # generate data
-    data <- generator(n = 500, input = mod)
+    data <- generator(n = 500, input = net)
   })
 
   return(dt)
 
 }
-
-
 
 # a fit function that does not print output
 silent_fit <- function(model) {
@@ -73,63 +68,140 @@ silent_fit <- function(model) {
   return(fit_result)
 }
 
-# qgraph::qgraph(mod)
+# obtain the lower.tri of a network, label each edge with the nodes that it connects, &
+# output the vector of edges annotated with corresponding nodes
+net2vec <- function(mat){
+
+  # assign row&colnames if there's none
+  if (is.null(rownames(mat))) {
+    rownames(mat) <- paste0("V", 1:nrow(mat))
+  }
+
+  if (is.null(colnames(mat))) {
+    colnames(mat) <- paste0("V", 1:ncol(mat))
+  }
+
+  # obtain lower.tri
+  vec <- data.frame(mat[lower.tri(mat)])
+  names(vec) <- "weights"
+
+  # annotate values with row&colnames
+  names.Mat <- outer(rownames(mat), colnames(mat), paste, sep = "--")
+  vec$loc <- names.Mat[lower.tri(names.Mat)]
+
+  return(vec)
+
+}
 
 # ----- create misspecification -----
 
 # add the additional parameter to the node with smallest predictability (most variance left to explain)
-ggm_add <- function(mod){
+ggm_add <- function(net, propPos){
 
-  # calculate predictability
-  r2 <- qgraph::centrality(mod, R2 = TRUE)$R2
-  r2_sum <- matrix(r2, nrow = nrow(mod), ncol = ncol(mod)) + matrix(r2, nrow = nrow(mod), ncol = ncol(mod), byrow = TRUE)
+  # calculate predictability of each edge
+  r2 <- qgraph::centrality(net, R2 = TRUE)$R2
+
+  # calculate the summed predictability of nodes connected by each edge
+  r2_sum <- matrix(r2, nrow = nrow(net), ncol = ncol(net)) +
+    matrix(r2, nrow = nrow(net), ncol = ncol(net), byrow = TRUE)
 
   # avoid selecting diagnal and locations where there is already an edge
-  r2_sum[mod != 0] <- 2
+  r2_sum[net != 0] <- 2
   diag(r2_sum) <- 2
 
-  # location of smallest predictability
-  loc <- which(r2_sum == min(r2_sum), arr.ind = TRUE)
+  # rank priorities based on summed predictability; here the weights are summed predictabilities
+  # edges that connect nodes of low predictability are prioritized
+  edge_df <- net2vec(r2_sum) %>%
+    arrange(weights) %>%
+    mutate(priority = dense_rank(weights)) %>%
+    # select the top 10 (didn't involve randomization b/c doesn't seem to be necessary)
+    # effect of location for edges of same summed predictability might be trivial
+    head(10) %>%
+    mutate(
+      from = as.numeric(gsub("V(\\d+)--V\\d+", "\\1", loc)),
+      to = as.numeric(gsub("V\\d+--V(\\d+)", "\\1", loc))
+    )
 
-  # remove duplication
-  loc <- loc[(apply(loc, 1, sort) %>% t %>% duplicated()),]
 
-  # in case there are multiple smallest, select one randomly
-  # set.seed(960308)
-  ind <- loc[sample(1:nrow(loc), 1),] %>% as.numeric
+  # # candidate r2 values
+  # r2_cand <- r2_sum[lower.tri(r2_sum)] %>% unique %>% sort %>% head(10)
+  #
+  # which((r2_sum %in% r2_cand) & lower.tri(r2_sum))
+  #
+  # counter <- 1
+  #
+  # Reduce(`|`, lapply(r2_cand, function(x) r2_sum == x)) %>% which(arr.ind = TRUE)
+  #
+  # # location of smallest predictability
+  # loc <- which(r2_sum == min(r2_sum), arr.ind = TRUE)
+  #
+  # # remove duplication
+  # loc <- loc[(apply(loc, 1, sort) %>% t %>% duplicated()),]
+  #
+  # # in case there are multiple smallest, select one randomly
+  # # set.seed(960308)
+  # ind <- loc[sample(1:nrow(loc), 1),] %>% as.numeric
 
   # the smallest eigenvalue of the true is also negative
-  # eigen(mod, symmetric = TRUE, only.values = TRUE)$values %>% min
+  # eigen(net, symmetric = TRUE, only.values = TRUE)$values %>% min
 
   # the weight of the new edge is the same as the edge with the smallest absolute value in the network
   # purrr::map(data, function(dt) {
-  edge_vec <- mod[mod!=0]
-  add_edge_abs <- edge_vec[edge_vec %>% abs %>% which.min]
+  edge_vec <- net[net!=0]
+  add_edge <- (edge_vec %>% abs %>% min) * sample(c(1,-1), 1, prob = c(propPos, 1-propPos))
   # sign_edge <- ifelse(cor(dt[,ind[1]], dt[,ind[2]]) > 0, 1,-1)
   # * sign_edge
-  #   return(mod)
+  #   return(net)
   # })
 
-  mod_misspec <- mod
-  mod_misspec[ind[1], ind[2]] <- mod_misspec[ind[2], ind[1]] <- add_edge_abs
+  # to do:
+  # determine sign based on marginal correlation in the raw data
+  # might not be necessary b/c the empirical model is fit to the data generated by the misspec model, not the raw data
+  # only whether the fit indices can detect that added edge matters; its sign doesn't matter
+  # maybe add an option to decide the proportion of positive edges in the extra edges
 
-  set.seed(NULL)
+  mod_misspec <- net
+  counter <- 1
 
-  return(mod_misspec)
+  while (counter <= 10) {
+
+    # add the extra edge
+    mod_misspec[edge_df$from[counter], edge_df$to[counter]] <-
+      mod_misspec[edge_df$to[counter], edge_df$from[counter]] <-
+      add_edge
+
+    # check the positive definiteness of I - omega\
+    eigen_vals <-  eigen((diag(nrow(mod_misspec)) - mod_misspec), symmetric = TRUE)$values
+
+    # return the misspecified model if positive definite
+    if(all(eigen_vals > 0)){
+      return(mod_misspec)
+    } else {
+      # restore to original state
+      mod_misspec <- net
+      counter <- counter + 1
+
+      # stop the function if can't find a positive definite misspec model after 10 iters
+      if(counter > 10){
+        stop("could not find a misspecified model that is positive definite after 10 iterations")
+      }
+    }
+  }
+
 }
 
-ggm_fit_misspec <- function(mod, iter) {
+ggm_fit_misspec <- function(net, iter, propPos) {
 
   # create adjacency matrix for CNA
-  adj_net <- mod
+  adj_net <- net
   adj_net[adj_net != 0L] <- 1
 
-  mod_misspec <- ggm_add(mod)
+  mod_misspec <- ggm_add(net,propPos)
 
   # generate data for the misspecified model
   data <- ggm_dt_sim(net = mod_misspec, iter = iter)
 
-  # getting the misspec model
+  # getting the cna that fits the empirical model to the data simulated from the misspec model
   misspec_cna <- purrr::map(data, function(dt) {
     ggm(dt, omega = adj_net) %>% runmodel
   })
@@ -146,17 +218,15 @@ ggm_fit_misspec <- function(mod, iter) {
 
 }
 
-eigen(diag(nrow(mod)) - mod)$values
-
 # true model --------------------------------------------------------------
 
-ggm_fit_true <- function(mod) {
+ggm_fit_true <- function(net, iter) {
 
   # generate data from true
-  data <- ggm_dt_sim(mod, iter)
+  data <- ggm_dt_sim(net, iter)
 
   # create adjacency matrix for CNA
-  adj_net <- mod
+  adj_net <- net
   adj_net[adj_net != 0L] <- 1
 
   # getting the true model
@@ -176,14 +246,14 @@ ggm_fit_true <- function(mod) {
 
 }
 
-dt <- ggm_dt_sim(mod, iter = 100, n = 200, ordinal = FALSE)
+dt <- ggm_dt_sim(net1, iter = 100, n = 200, ordinal = FALSE)
 
 
 
 
-misspec_fit <- ggm_fit_misspec(mod, iter = 100)
+misspec_fit <- ggm_fit_misspec(net1, iter = 100, propPos = 0.6)
 
-true_fit <- ggm_fit_true(mod)
+true_fit <- ggm_fit_true(net1, iter = 100)
 
 misspec_sum <- purrr::map(misspec_fit,~dplyr::reframe(.,TLI_M=stats::quantile(TLI_M, c(seq(0.95,0,-0.01))),
                                                   RMSEA_M=stats::quantile(RMSEA_M, c(seq(0.05,1,0.01))),
