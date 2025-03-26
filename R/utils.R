@@ -1,64 +1,5 @@
-library(psychonetrics)
-library(dplyr)
 
-# Load the data:
-data("StarWars")
-
-# Observed variables:
-obsvars <- c("Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8", "Q9", "Q10")
-
-# Form GGM model:
-ggm1 <- ggm(StarWars, vars = obsvars)
-
-# Run model:
-ggm1 <- ggm1 %>% runmodel
-
-ggm1 <- ggm1 %>%
-  prune(adjust = "fdr", alpha = 0.01) %>% runmodel
-
-# Obtain network:
-net1 <- getmatrix(ggm1, "omega")
-
-# eigen(diag(nrow(net1)) - net1)$values
-#
-#
-#
-#
-#
-# ordinal <- FALSE
-# nLevels <-  5
-# skewFactor <- 1
-# type <- "uniform"
-# missing <- 0
-# mod <- net1
-# n <- 500
-# propPos <- 0.8
-
-# simulate data with seeds
-ggm_dt_sim <- function(net, iter = 200, n = 500, ordinal = FALSE, nLevels = 4, skewFactor = 1, type =
-                         c("uniform", "random"), missing = 0){
-
-  # set up generator
-  generator <- bootnet::ggmGenerator(ordinal = ordinal,
-                                     nLevels = n_levels,
-                                     skewFactor = skew_factor,
-                                     type = type, missing = missing)
-
-  dt <- lapply(seq_len(iter), function(i) {
-
-    # set seed
-    # seed <- i + 960308
-    # set.seed(seed)
-
-    # generate data
-    data <- generator(n = 500, input = net)
-  })
-
-  return(dt)
-
-}
-
-# a fit function that does not print output
+# ----- a fit function that does not print output -----
 silent_fit <- function(model) {
   # Capture and discard printed output, return the data frame
   capture.output(
@@ -68,25 +9,44 @@ silent_fit <- function(model) {
   return(fit_result)
 }
 
+# ----- simulate data with seeds -----
+ggm_dt_sim <- function(net, iter, n, ordinal, nLevels, skewFactor, type, missing, par_fun){
+
+  # set up generator
+  generator <- bootnet::ggmGenerator(ordinal = ordinal,
+                                     nLevels = n_levels,
+                                     skewFactor = skew_factor,
+                                     type = type, missing = missing)
+
+  # generate data
+  dt <- par_fun(seq_len(iter), function(i) {
+    data <- generator(n = 500, input = net)
+  })
+
+  return(dt)
+
+}
+
+# ----- net2vec -----
 # obtain the lower.tri of a network, label each edge with the nodes that it connects, &
 # output the vector of edges annotated with corresponding nodes
-net2vec <- function(mat){
+net2vec <- function(net){
 
   # assign row&colnames if there's none
-  if (is.null(rownames(mat))) {
-    rownames(mat) <- paste0("V", 1:nrow(mat))
+  if (is.null(rownames(net))) {
+    rownames(net) <- paste0("V", 1:nrow(net))
   }
 
-  if (is.null(colnames(mat))) {
-    colnames(mat) <- paste0("V", 1:ncol(mat))
+  if (is.null(colnames(net))) {
+    colnames(net) <- paste0("V", 1:ncol(net))
   }
 
   # obtain lower.tri
-  vec <- data.frame(mat[lower.tri(mat)])
+  vec <- data.frame(net[lower.tri(net)])
   names(vec) <- "weights"
 
   # annotate values with row&colnames
-  names.Mat <- outer(rownames(mat), colnames(mat), paste, sep = "--")
+  names.Mat <- outer(rownames(net), colnames(net), paste, sep = "--")
   vec$loc <- names.Mat[lower.tri(names.Mat)]
 
   return(vec)
@@ -190,80 +150,168 @@ ggm_add <- function(net, propPos){
 
 }
 
-ggm_fit_misspec <- function(net, iter, propPos) {
+ggm_fit_misspec <- function(net, adj_net, iter, n = n, propPos, ordinal, nLevels, skewFactor, type, missing, par_fun) {
 
-  # create adjacency matrix for CNA
-  adj_net <- net
-  adj_net[adj_net != 0L] <- 1
-
+  # create misspec model
   mod_misspec <- ggm_add(net,propPos)
 
   # generate data for the misspecified model
-  data <- ggm_dt_sim(net = mod_misspec, iter = iter)
+  data <- ggm_dt_sim(net = mod_misspec, iter = iter, n = n, ordinal = ordinal,
+                     nLevels = nLevels, skewFactor = skewFactor,
+                     type = type, missing = missing, par_fun = par_fun)
 
   # getting the cna that fits the empirical model to the data simulated from the misspec model
-  misspec_cna <- purrr::map(data, function(dt) {
+  misspec_cna <- par_fun(data, function(dt) {
     ggm(dt, omega = adj_net) %>% runmodel
   })
 
   # getting the fit of misspec model
-  misspec_fit <- purrr::map_dfr(misspec_cna, function(m) {
+  misspec_fit <- par_fun(misspec_cna, function(m) {
     silent_fit(m) %>%
       filter(Measure %in% c("cfi", "rmsea", "tli")) %>%
       mutate(Measure = NULL, Value = round(Value, 3)) %>%
       t %>% as.data.frame %>%
       `colnames<-`(c("TLI_M","CFI_M","RMSEA_M")) %>%
-      mutate(Model = "Misspec")
-  }) %>% `rownames<-`(paste0("iter", 1:nrow(.))) %>% list
+      mutate(Model = "misspec")
+  }) %>% bind_rows %>%
+    `rownames<-`(paste0("iter", 1:nrow(.))) %>% list
 
 }
 
 # true model --------------------------------------------------------------
 
-ggm_fit_true <- function(net, iter) {
+ggm_fit_true <- function(net, adj_net, iter, n, ordinal, nLevels, skewFactor, type, missing, par_fun) {
 
   # generate data from true
-  data <- ggm_dt_sim(net, iter)
-
-  # create adjacency matrix for CNA
-  adj_net <- net
-  adj_net[adj_net != 0L] <- 1
+  data <- ggm_dt_sim(net = net, iter = iter, n = n, ordinal = ordinal,
+                     nLevels = nLevels, skewFactor = skewFactor,
+                     type = type, missing = missing, par_fun = par_fun)
 
   # getting the true model
-  true_cna <- purrr::map(data, function(dt) {
+  true_cna <- par_fun(data, function(dt) {
     ggm(dt, omega = adj_net) %>% runmodel
   })
 
   # getting the true model fit
-  true_fit <- purrr::map_dfr(true_cna, function(m) {
+  true_fit <- par_fun(true_cna, function(m) {
     silent_fit(m) %>%
       filter(Measure %in% c("cfi", "rmsea", "tli")) %>%
       mutate(Measure = NULL, Value = round(Value, 3)) %>%
       t %>% as.data.frame %>%
       `colnames<-`(c("TLI_T","CFI_T","RMSEA_T")) %>%
-      mutate(Model = "TRUE")
-  }) %>% `rownames<-`(paste0("iter", 1:nrow(.))) %>% list
+      mutate(Model = "true")
+  }) %>% bind_rows %>%
+    `rownames<-`(paste0("iter", 1:nrow(.))) %>% list
 
 }
 
-dt <- ggm_dt_sim(net1, iter = 100, n = 200, ordinal = FALSE)
+fit_data <- function(true_fit, misspec_fit, par_fun){
+
+  df_results <- par_fun(misspec_fit,function(df) {
+    cbind(df,true_fit)
+  })
+
+  #Create beginning of variable name for each
+  dat_name <- rep(c("TLI_L","RMSEA_L","CFI_L","Type_L"),2)
+
+  #Create vector of 0's for the True model
+  dat_0 <- rep(0,4)
+
+  #Get number of levels of misspecification
+  dat_lev <- length(df_results)
+
+  #Create combo of Level #'s and 0's to merge with variable names (in list form)
+  dat_num <- list()
+  for (i in 1:dat_lev){
+    output <- c(rep(i,4),dat_0)
+    dat_num[[i]] <- output
+  }
+
+  #Combine variable name with level # (in list form)
+  var_names <- par_fun(dat_num, function(x){
+    paste0(dat_name,x)
+  })
+
+  #Rename variables in dataset list
+  dat_revised <- par_fun(seq_along(df_results), function(x){
+    colnames(df_results[[x]]) <- var_names[[x]]
+    #not sure why I need to mention it again but I do
+    df_results[[x]]
+  })
+
+  #Combine into one dataset
+  df_renamed <- do.call(cbind.data.frame,dat_revised)
+
+  #Remove the duplicate L0 info
+  df_renamed2 <- df_renamed[!duplicated(colnames(df_renamed))]
+
+  #Remove the "type" variable (unnecessary)
+  df_renamed3 <- df_renamed2[, -grep("Type",colnames(df_renamed2))]
+
+  #Reorder variables
+  df_renamed4 <- df_renamed3 %>%
+    dplyr::relocate(order(colnames(df_renamed3))) %>%            #gets numbers in order
+    dplyr::relocate(dplyr::starts_with("TLI"),dplyr::starts_with("RMSEA"))    #gets fit indices in order
+
+  return(df_renamed4)
+}
 
 
-
-
-misspec_fit <- ggm_fit_misspec(net1, iter = 100, propPos = 0.6)
-
-true_fit <- ggm_fit_true(net1, iter = 100)
-
-misspec_sum <- purrr::map(misspec_fit,~dplyr::reframe(.,TLI_M=stats::quantile(TLI_M, c(seq(0.95,0,-0.01))),
-                                                  RMSEA_M=stats::quantile(RMSEA_M, c(seq(0.05,1,0.01))),
-                                                  CFI_M=stats::quantile(CFI_M, c(seq(0.95,0,-0.01)))))
-
-#For the true model, compute the cutoffs (these will all be the same - just need in list form)
-true_sum <- purrr::map(true_fit,~dplyr::reframe(.,TLI_T=stats::quantile(TLI_T, c(.05)),
-                                               RMSEA_T=stats::quantile(RMSEA_T, c(.95)),
-                                               CFI_T=stats::quantile(CFI_T, c(.05))))
-
-
-
+#
+#
+# fit1<-unlist(Fit)%>% matrix(nrow=(length(misspec_sum)+1), ncol=6) %>%
+#   `colnames<-`(c("TLI","sensitivity_tli","RMSEA","sensitivity_rmsea","CFI","sensitivity_cfi"))
+#
+# # ditch the cutoff if its sensitivity < 0.5
+# for (j in 2:(length(misspec_sum)+1)) {
+#   if(fit1[j,2]<.50){fit1[j,1]<-NA}
+#   if(fit1[j,4]<.50){fit1[j,3]<-NA}
+#   if(fit1[j,6]<.50){fit1[j,5]<-NA}
+# }
+#
+# #create blanks to make table easier to read
+# pp<-c(rep("--",(length(misspec_sum)+1)))
+# pp0<-c(rep("",(length(misspec_sum)+1)))
+#
+# # #matrix of cross-loadings added at each level
+# # mag <- ggm_add(net1, propPos = 0.6) %>%
+# #   tidyr::separate(V1,into=c("a","b","Magnitude","d","e"),sep=" ") %>%
+# #   select(Magnitude) %>%
+# #   mutate(Magnitude=as.numeric(Magnitude),
+# #          Magnitude=round(Magnitude,digits=3))
+#
+# # #Create column of cross-loadings added at each level
+# # mname<-c("NONE","","")
+# # for (i in 1:length(misspec_sum)){
+# #   mi<-c(mag[i,],"","")
+# #   mname<-cbind(mname,mi)
+# # }
+#
+# #format column for each index and the misspecification magnitude
+# TT<-noquote(matrix(rbind(fit1[,1],fit1[,2],pp0),ncol=1))
+# RR<-noquote(matrix(rbind(fit1[,3],fit1[,4],pp0),ncol=1))
+# CC<-noquote(matrix(rbind(fit1[,5],fit1[,6],pp0),ncol=1))
+# # MM<-noquote(matrix(mname, ncol=1))
+#
+# # #bind columns together into one table
+# # Table<-noquote(cbind(TT,RR,CC,MM) %>%
+# #                  `colnames<-`(c("TLI","RMSEA","CFI","Magnitude")))
+#
+# #bind columns together into one table
+# Table<-noquote(cbind(TT,RR,CC) %>%
+#                  `colnames<-`(c("TLI","RMSEA","CFI")))
+#
+# #update row names
+# rname<-c("Level-0","Specificity", "")
+# for (i in 1:length(misspec_sum)){
+#   ri<-c(paste("Level-",i,sep=""),"Sensitivity","")
+#   rname<-cbind(rname,ri)
+# }
+# rownames(Table)<-rname
+#
+# #delete last blank row
+# Table<-Table[1:(nrow(Table)-1),]
+#
+# #Put into list
+# res$cutoffs <- Table
 
