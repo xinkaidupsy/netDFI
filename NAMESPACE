@@ -2,4 +2,7 @@
 
 export(dfi_ggm)
 import(dplyr)
+import(future)
+import(future.apply)
 importFrom(bootnet,ggmGenerator)
+importFrom(psychonetrics,ggm)

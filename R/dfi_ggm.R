@@ -1,8 +1,6 @@
 #' The invariance partial pruning (IVPP) algorithm for panel GVAR models
 #'
-#' This function implements the IVPP algorithm to compare networks in the multi-group panelGVAR models.
-#' The IVPP algorithm is a two-step procedure that first conducts an global invariance test of network difference and then performs partial pruning for the specific edge-level differences.
-#' Currently supports the comparison of temporal and contemporaneous networks.
+#' This function determines the dynamic fit index cutoffs for Gaussian Graphical Models (GGM)
 #'
 #' @param net The empirical network to estimate dynamic fit index cutoffs for
 #' @param power The power that the cutoff value aims for
@@ -15,17 +13,20 @@
 #' @param type Should thresholds for ordinal data be sampled at random or determined uniformly?
 #' @param missing Proportion of data that should be simulated to be missing.
 #' @param ncores How many cores you want to use in the simulation. Recommend to leave one core free so that other tasks in the system are not impacted.
+#' @param n_misspec Number of mis-specified model you want in the simulation. Default to 5, meaning
+#' there are five mis-specified models with 1, 2, ..., 5 extra edges respectively.
 #'
 #' @return An object of class dfi_ggm. Can use summary to view a summary of results
 #'
 #'
 #' @import dplyr future future.apply
 #' @importFrom bootnet ggmGenerator
+#' @importFrom psychonetrics ggm
 #' @export dfi_ggm
 
 
 
-dfi_ggm <- function(net, power = 0.8, iter = 200, n = 500, propPos = 0.8,
+dfi_ggm <- function(net, power = 0.8, n_misspec = 5, iter = 200, n = 500, propPos = 0.8,
                     ordinal = FALSE, nLevels = 4, skewFactor = 1,
                     type = c("uniform", "random"), missing = 0, ncores = 1) {
 
@@ -34,7 +35,7 @@ dfi_ggm <- function(net, power = 0.8, iter = 200, n = 500, propPos = 0.8,
   # Set up parallel execution plan
   if (ncores > 1) {
     future::plan(future::multisession, workers = ncores)
-    par_fun <- future.apply::future_lapply
+    par_fun <- future.apply::future_lapply %>% suppressWarnings
     on.exit(future::plan(future::sequential), add = TRUE)
   } else {
     par_fun <- lapply
@@ -47,17 +48,23 @@ dfi_ggm <- function(net, power = 0.8, iter = 200, n = 500, propPos = 0.8,
   # list to store results
   res <- list()
 
+  # fit of misspec model
+  misspec <- ggm_fit_misspec(net = net, iter = iter, n = n, adj_net = adj_net, propPos = propPos,
+                             ordinal = ordinal, nLevels = nLevels, skewFactor = skewFactor,
+                             type = type, missing = missing, par_fun = par_fun, n_misspec = n_misspec)
+  misspec_fit <- misspec$misspec_fit
+
   # true fit
   true_fit <- ggm_fit_true(net = net, iter = iter, n = n, adj_net = adj_net,
                            ordinal = ordinal, nLevels = nLevels, skewFactor = skewFactor,
                            type = type, missing = missing, par_fun = par_fun)
 
-  misspec_fit <- ggm_fit_misspec(net = net, iter = iter, n = n, adj_net = adj_net, propPos = propPos,
-                                 ordinal = ordinal, nLevels = nLevels, skewFactor = skewFactor,
-                                 type = type, missing = missing, par_fun = par_fun)
-
   # store true and misspec fit
-  res$data <- fit_data(true_fit, misspec_fit, par_fun = par_fun)
+  res$fit <- fit_data(true_fit = true_fit, misspec_fit, par_fun = par_fun)
+
+  # store misspec models
+  res$mod_misspec <- misspec$mod_misspec %>%
+    setNames(paste0("L", 1:length(misspec$mod_misspec)))
 
   # find the 0-95th percentile in the fit dist of misspec model;
   # this is to find the value that shows better fit than 95% of the values in the misspec dist
@@ -85,7 +92,7 @@ dfi_ggm <- function(net, power = 0.8, iter = 200, n = 500, propPos = 0.8,
   # calculate sensitivity based on misspec dist & power
   for (i in 1:length(misspec_fit)) {
 
-    fit[[i]]<-cbind(misspec_sum[[i]], true_sum[[i]])
+    fit[[i]]<-cbind(misspec_sum[[i]], true_sum)
     fit[[i]]$Power<-seq(.95, 0.0, -.01)
 
     # Verify whether value representing the top 5% of fit in the misspecified model is actually
@@ -123,16 +130,50 @@ dfi_ggm <- function(net, power = 0.8, iter = 200, n = 500, propPos = 0.8,
 
   # ditch the cutoff if its sensitivity < 0.5
   for (j in 1:length(misspec_sum)) {
-    if(Ls[j,2]<.50){Ls[j,1]<-"NONE"}
-    if(Ls[j,4]<.50){Ls[j,3]<-"NONE"}
-    if(Ls[j,6]<.50){Ls[j,5]<-"NONE"}
+    if(Ls[j,2]<.50){Ls[j,1]<-NA}
+    if(Ls[j,4]<.50){Ls[j,3]<-NA}
+    if(Ls[j,6]<.50){Ls[j,5]<-NA}
   }
 
-  res$true <- L0 # this is the cutoff that marks power = power
-  res$misspec <- Ls # these are the cutoff that marks sensitivity & power = power;
+  res$cutoff_true <- L0 # this is the cutoff that marks power = power
+  res$cutoff_misspec <- Ls # these are the cutoff that marks sensitivity & power = power;
   # this is the best fitting value in misspec that is still lower than the worst fitting value in true
+
+  # assign class to summarize
+  class(res) <- "dfi_ggm"
 
   return(res)
 
 }
 
+
+#' The invariance partial pruning (IVPP) algorithm for panel GVAR models
+#'
+#' Plot the fit distribution
+#'
+#' @param net The empirical network to estimate dynamic fit index cutoffs for
+#' @param power The power that the cutoff value aims for
+#' @param iter The number of iterations used in your simulation.
+#' @param n Your sample size
+#' @param propPos Decide the proportion of positive in the extra edges added to the empirical network to create the mis-specified network
+#' @param ordinal Logical; should ordinal data be generated?
+#' @param nLevels Number of levels used in ordinal data.
+#' @param skewFactor How skewed should ordinal data be? 1 indicates uniform data and higher values increase skewedness.
+#' @param type Should thresholds for ordinal data be sampled at random or determined uniformly?
+#' @param missing Proportion of data that should be simulated to be missing.
+#' @param ncores How many cores you want to use in the simulation. Recommend to leave one core free so that other tasks in the system are not impacted.
+#' @param n_misspec Number of mis-specified model you want in the simulation. Default to 5, meaning
+#' there are five mis-specified models with 1, 2, ..., 5 extra edges respectively.
+#'
+#' @return An object of class dfi_ggm. Can use summary to view a summary of results
+#'
+#'
+#' @import dplyr future future.apply
+#' @importFrom bootnet ggmGenerator
+#' @importFrom psychonetrics ggm
+#' @export dfi_ggm
+#'
+
+plot.dfi_ggm <- function() {
+
+}
