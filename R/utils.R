@@ -209,10 +209,13 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, propPos, ordinal, nLevels
   edge_cand_full <- edge_df(net = net)
 
   # select based on priority & non-replication (don't select edges that are connected to the same node)
-  edge_cand_ls <- select_edges(edge_cand_full, max_round = 10, n_misspec = n_misspec)
+  edge_cand_ls <- select_edges(edge_cand_full,
+                               max_round = 10,
+                               n_misspec = n_misspec)
 
   # add
-  mod_misspec <- ggm_add(net = net, edge_cand_ls = edge_cand_ls, n_misspec = n_misspec, propPos = propPos)
+  mod_misspec <- ggm_add(net = net, edge_cand_ls = edge_cand_ls,
+                         n_misspec = n_misspec, propPos = propPos)
 
   # generate data for the misspecified model
   data <- par_fun(mod_misspec, function(net) {

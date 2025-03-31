@@ -1,4 +1,4 @@
-#' The invariance partial pruning (IVPP) algorithm for panel GVAR models
+#' Dynamic fit index cutoffs for Gaussian Graphical Model
 #'
 #' This function determines the dynamic fit index cutoffs for Gaussian Graphical Models (GGM)
 #'
@@ -13,8 +13,9 @@
 #' @param type Should thresholds for ordinal data be sampled at random or determined uniformly?
 #' @param missing Proportion of data that should be simulated to be missing.
 #' @param ncores How many cores you want to use in the simulation. Recommend to leave one core free so that other tasks in the system are not impacted.
-#' @param n_misspec Number of mis-specified model you want in the simulation. Default to 5, meaning
-#' there are five mis-specified models with 1, 2, ..., 5 extra edges respectively.
+#' @param n_misspec Number of mis-specified model you want in the simulation. Default to 3, meaning
+#' there are five mis-specified models with 1, 2, ..., 3 extra edges respectively.
+#' Avoid setting too large numbers. Otherwise the simulation might fail or take too long.
 #'
 #' @return An object of class dfi_ggm. Can use summary to view a summary of results
 #'
@@ -26,7 +27,7 @@
 
 
 
-dfi_ggm <- function(net, power = 0.8, n_misspec = 5, iter = 200, n = 500, propPos = 0.8,
+dfi_ggm <- function(net, power = 0.8, n_misspec = 3, iter = 200, n = 500, propPos = 0.8,
                     ordinal = FALSE, nLevels = 4, skewFactor = 1,
                     type = c("uniform", "random"), missing = 0, ncores = 1) {
 
@@ -164,6 +165,7 @@ dfi_ggm <- function(net, power = 0.8, n_misspec = 5, iter = 200, n = 500, propPo
 #' @param ncores How many cores you want to use in the simulation. Recommend to leave one core free so that other tasks in the system are not impacted.
 #' @param n_misspec Number of mis-specified model you want in the simulation. Default to 5, meaning
 #' there are five mis-specified models with 1, 2, ..., 5 extra edges respectively.
+#' Avoid setting too large numbers. Otherwise the simulation might fail or take too long.
 #'
 #' @return An object of class dfi_ggm. Can use summary to view a summary of results
 #'

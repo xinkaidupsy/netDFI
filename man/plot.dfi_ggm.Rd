@@ -30,11 +30,12 @@
 \item{ncores}{How many cores you want to use in the simulation. Recommend to leave one core free so that other tasks in the system are not impacted.}
 
 \item{n_misspec}{Number of mis-specified model you want in the simulation. Default to 5, meaning
-there are five mis-specified models with 1, 2, ..., 5 extra edges respectively.}
+there are five mis-specified models with 1, 2, ..., 5 extra edges respectively.
+Avoid setting too large numbers. Otherwise the simulation might fail or take too long.}
 }
 \value{
 An object of class dfi_ggm. Can use summary to view a summary of results
 }
 \description{
-This function determines the dynamic fit index cutoffs for Gaussian Graphical Models (GGM)
+Plot the fit distribution
 }
