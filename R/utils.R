@@ -1,16 +1,27 @@
 
+utils::globalVariables(c(
+  ".", "weights", "loc", "Measure", "Value"
+))
+
+#' @import dplyr future future.apply
+#' @importFrom psychonetrics ggm
+#' @importFrom stats setNames quantile
+#' @importFrom utils capture.output
+#' @importFrom bootnet ggmGenerator
+#' @importFrom qgraph centrality
+
 # ----- a fit function that does not print output -----
 silent_fit <- function(model) {
   # Capture and discard printed output, return the data frame
-  capture.output(
-    fit_result <- fit(model),
+  utils::capture.output(
+    fit_result <- psychonetrics::fit(model),
     file = NULL
   )
   return(fit_result)
 }
 
 # ----- simulate data with seeds -----
-ggm_dt_sim <- function(net, iter, n, ordinal, nLevels, skewFactor, type, missing, par_fun){
+ggm_dt_sim <- function(net, iter, n, ordinal, n_levels, skew_factor, type, missing, par_fun){
 
   # set up generator
   generator <- bootnet::ggmGenerator(ordinal = ordinal,
@@ -141,7 +152,7 @@ select_edges <- function(edge_df, max_round, n_misspec) {
 
 # ----- create misspecification -----
 # add the additional parameter to the node with smallest predictability (most variance left to explain)
-ggm_add <- function(net, edge_cand_ls, n_misspec, propPos) {
+ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos) {
     # Extract non-zero elements from the original network
     edge_vec <- net[net != 0]
 
@@ -169,7 +180,7 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, propPos) {
 
         # Generate edge weights with random signs
         edge_weights <- min_abs_edge * sample(c(1, -1), nrow(edges_to_add),
-                                              prob = c(propPos, 1-propPos), replace = TRUE)
+                                              prob = c(prop_pos, 1-prop_pos), replace = TRUE)
 
         # Add each edge with the determined weight
         for (i in 1:nrow(edges_to_add)) {
@@ -203,7 +214,7 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, propPos) {
     stop("can't find networks that are all positive definite after 10 iter")
 }
 
-ggm_fit_misspec <- function(net, adj_net, iter, n = n, propPos, ordinal, nLevels, skewFactor, type, missing, par_fun, n_misspec) {
+ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_levels, skew_factor, type, missing, par_fun, n_misspec) {
 
   # create full list of candidate locations for the extra edge
   edge_cand_full <- edge_df(net = net)
@@ -215,19 +226,19 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, propPos, ordinal, nLevels
 
   # add
   mod_misspec <- ggm_add(net = net, edge_cand_ls = edge_cand_ls,
-                         n_misspec = n_misspec, propPos = propPos)
+                         n_misspec = n_misspec, prop_pos = prop_pos)
 
   # generate data for the misspecified model
   data <- par_fun(mod_misspec, function(net) {
     ggm_dt_sim(net = net, iter = iter, n = n, ordinal = ordinal,
-               nLevels = nLevels, skewFactor = skewFactor,
+               n_levels = n_levels, skew_factor = skew_factor,
                type = type, missing = missing, par_fun = par_fun) %>% suppressWarnings
   }) %>% suppressWarnings
 
   # getting the cna that fits the empirical model to the data simulated from the misspec model
   misspec_cna <- par_fun(data, function(dt) {
     m_c <- par_fun(dt, function(d) {
-      m_c <- psychonetrics::ggm(d, omega = adj_net) %>% runmodel
+      m_c <- psychonetrics::ggm(d, omega = adj_net) %>% psychonetrics::runmodel()
     }) %>% suppressWarnings
   }) %>% suppressWarnings
 
@@ -253,16 +264,16 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, propPos, ordinal, nLevels
 
 # true model --------------------------------------------------------------
 
-ggm_fit_true <- function(net, adj_net, iter, n, ordinal, nLevels, skewFactor, type, missing, par_fun) {
+ggm_fit_true <- function(net, adj_net, iter, n, ordinal, n_levels, skew_factor, type, missing, par_fun) {
 
   # generate data from true
   data <- ggm_dt_sim(net = net, iter = iter, n = n, ordinal = ordinal,
-                     nLevels = nLevels, skewFactor = skewFactor,
+                     n_levels = n_levels, skew_factor = skew_factor,
                      type = type, missing = missing, par_fun = par_fun) %>% suppressWarnings
 
   # getting the true model
   true_cna <- par_fun(data, function(dt) {
-    psychonetrics::ggm(dt, omega = adj_net) %>% runmodel
+    psychonetrics::ggm(dt, omega = adj_net) %>% psychonetrics::runmodel()
   }) %>% suppressWarnings
 
   # getting the true model fit
@@ -347,7 +358,7 @@ fit_data <- function(true_fit, misspec_fit, par_fun){
 # pp0<-c(rep("",(length(misspec_sum)+1)))
 #
 # # #matrix of cross-loadings added at each level
-# # mag <- ggm_add(net1, propPos = 0.6) %>%
+# # mag <- ggm_add(net1, prop_pos = 0.6) %>%
 # #   tidyr::separate(V1,into=c("a","b","Magnitude","d","e"),sep=" ") %>%
 # #   select(Magnitude) %>%
 # #   mutate(Magnitude=as.numeric(Magnitude),

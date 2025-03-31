@@ -2,18 +2,18 @@
 % Please edit documentation in R/dfi_ggm.R
 \name{dfi_ggm}
 \alias{dfi_ggm}
-\title{The invariance partial pruning (IVPP) algorithm for panel GVAR models}
+\title{Dynamic fit index cutoffs for Gaussian Graphical Model}
 \usage{
 dfi_ggm(
   net,
   power = 0.8,
-  n_misspec = 5,
+  n_misspec = 3,
   iter = 200,
   n = 500,
-  propPos = 0.8,
+  prop_pos = 0.8,
   ordinal = FALSE,
-  nLevels = 4,
-  skewFactor = 1,
+  n_levels = 4,
+  skew_factor = 1,
   type = c("uniform", "random"),
   missing = 0,
   ncores = 1
@@ -24,21 +24,21 @@ dfi_ggm(
 
 \item{power}{The power that the cutoff value aims for}
 
-\item{n_misspec}{Number of mis-specified model you want in the simulation. Default to 5, meaning
-there are five mis-specified models with 1, 2, ..., 5 extra edges respectively.
+\item{n_misspec}{Number of mis-specified model you want in the simulation. Default to 3, meaning
+there are five mis-specified models with 1, 2, ..., 3 extra edges respectively.
 Avoid setting too large numbers. Otherwise the simulation might fail or take too long.}
 
 \item{iter}{The number of iterations used in your simulation.}
 
 \item{n}{Your sample size}
 
-\item{propPos}{Decide the proportion of positive in the extra edges added to the empirical network to create the mis-specified network}
+\item{prop_pos}{Decide the proportion of positive in the extra edges added to the empirical network to create the mis-specified network}
 
 \item{ordinal}{Logical; should ordinal data be generated?}
 
-\item{nLevels}{Number of levels used in ordinal data.}
+\item{n_levels}{Number of levels used in ordinal data.}
 
-\item{skewFactor}{How skewed should ordinal data be? 1 indicates uniform data and higher values increase skewedness.}
+\item{skew_factor}{How skewed should ordinal data be? 1 indicates uniform data and higher values increase skewedness.}
 
 \item{type}{Should thresholds for ordinal data be sampled at random or determined uniformly?}
 
@@ -51,4 +51,8 @@ An object of class dfi_ggm. Can use summary to view a summary of results
 }
 \description{
 This function determines the dynamic fit index cutoffs for Gaussian Graphical Models (GGM)
+}
+\author{
+Xinkai Du
+Maintainer: Xinkai Du <xinkai.du.xd@gmail.com>
 }
