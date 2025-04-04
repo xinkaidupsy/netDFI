@@ -6,7 +6,7 @@ utils::globalVariables(c(
 #'
 #' This function determines the dynamic fit index cutoffs for Gaussian Graphical Models (GGM)
 #'
-#' @param net The empirical network to estimate dynamic fit index cutoffs for
+#' @param net The empirical network to estimate dynamic fit index cutoffs for; Input should be a matrix
 #' @param power The power that the cutoff value aims for
 #' @param iter The number of iterations used in your simulation.
 #' @param n Your sample size
@@ -30,7 +30,7 @@ utils::globalVariables(c(
 #' @export dfi_ggm
 
 dfi_ggm <- function(net, power = 0.8, n_misspec = 3, iter = 200, n = 500, prop_pos = 0.8,
-                    ordinal = FALSE, n_levels = 4, skew_factor = 1,
+                    ordinal = FALSE, n_levels = 4, skew_factor = 1, min_extra = 0.15,
                     type = c("uniform", "random"), missing = 0, ncores = 1) {
 
   type <- match.arg(type, c("uniform", "random"))
@@ -52,10 +52,17 @@ dfi_ggm <- function(net, power = 0.8, n_misspec = 3, iter = 200, n = 500, prop_p
   res <- list()
 
   # fit of misspec model
-  misspec <- ggm_fit_misspec(net = net, iter = iter, n = n, adj_net = adj_net, prop_pos = prop_pos,
-                             ordinal = ordinal, n_levels = n_levels, skew_factor = skew_factor,
-                             type = type, missing = missing, par_fun = par_fun, n_misspec = n_misspec)
+  misspec <- ggm_fit_misspec(net = net, iter = iter, n = n,
+                             adj_net = adj_net, prop_pos = prop_pos,
+                             ordinal = ordinal, n_levels = n_levels,
+                             skew_factor = skew_factor, type = type,
+                             missing = missing, par_fun = par_fun,
+                             n_misspec = n_misspec, min_extra = min_extra)
+
   misspec_fit <- misspec$misspec_fit
+
+  # add the added edges to the return list
+  res$added_edges <- misspec$added_edges %>% setNames(paste0("L", 1:n_misspec))
 
   # true fit
   true_fit <- ggm_fit_true(net = net, iter = iter, n = n, adj_net = adj_net,

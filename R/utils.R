@@ -152,12 +152,13 @@ select_edges <- function(edge_df, max_round, n_misspec) {
 
 # ----- create misspecification -----
 # add the additional parameter to the node with smallest predictability (most variance left to explain)
-ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos) {
+ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos, min_extra) {
     # Extract non-zero elements from the original network
     edge_vec <- net[net != 0]
 
     # Get minimum absolute value of edge weights to use for new edges
-    min_abs_edge <- min(abs(edge_vec))
+    # set to be no smaller than min_extra
+    min_abs_edge <- max(min(abs(edge_vec)), min_extra)
 
     # Create a list to store resulting networks
     result_networks <- list()
@@ -170,25 +171,30 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos) {
       # Temporary list to store networks for this starting point
       net_ls <- list()
 
+      # a list to store added edges and their locations
+      edges_to_add <-  list()
+
       # For each model size (1 to n_misspec)
       for (k in 1:n_misspec) {
         # Get the edges for this model
-        edges_to_add <- edge_cand_ls[[start_idx]][[k]]
+        edges_to_add[[k]] <- edge_cand_ls[[start_idx]][[k]]
 
         # Create a copy of the original network to modify
         mod_misspec <- net
 
         # Generate edge weights with random signs
-        edge_weights <- min_abs_edge * sample(c(1, -1), nrow(edges_to_add),
-                                              prob = c(prop_pos, 1-prop_pos), replace = TRUE)
+        edges_to_add[[k]]$added_edges <- min_abs_edge * sample(c(1, -1),
+                                                               nrow(edges_to_add[[k]]),
+                                                               prob = c(prop_pos, 1-prop_pos),
+                                                               replace = TRUE)
 
         # Add each edge with the determined weight
-        for (i in 1:nrow(edges_to_add)) {
-          from_node <- edges_to_add$from[i]
-          to_node <- edges_to_add$to[i]
+        for (i in 1:nrow(edges_to_add[[k]])) {
+          from_node <- edges_to_add[[k]]$from[i]
+          to_node <- edges_to_add[[k]]$to[i]
 
           # Add the edge in both directions (symmetric matrix)
-          mod_misspec[from_node, to_node] <- mod_misspec[to_node, from_node] <- edge_weights[i]
+          mod_misspec[from_node, to_node] <- mod_misspec[to_node, from_node] <- edges_to_add[[k]]$added_edges[i]
         }
 
         # Check the positive definiteness of I - omega
@@ -206,7 +212,10 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos) {
 
       # If all networks for this starting point are positive definite, return them
       if (all_positive_definite) {
-        return(net_ls)
+        return(list(
+          net_ls = net_ls,
+          added_edges = lapply(edges_to_add, function(x) x %>% select(loc, added_edges))
+        ))
       }
     }
 
@@ -214,7 +223,7 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos) {
     stop("can't find networks that are all positive definite after 10 iter")
 }
 
-ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_levels, skew_factor, type, missing, par_fun, n_misspec) {
+ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_levels, skew_factor, type, missing, par_fun, n_misspec, min_extra) {
 
   # create full list of candidate locations for the extra edge
   edge_cand_full <- edge_df(net = net)
@@ -226,10 +235,13 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_leve
 
   # add
   mod_misspec <- ggm_add(net = net, edge_cand_ls = edge_cand_ls,
-                         n_misspec = n_misspec, prop_pos = prop_pos)
+                         n_misspec = n_misspec, prop_pos = prop_pos, min_extra = min_extra)
+
+  # misspec model list
+  m_net_ls <- mod_misspec$net_ls
 
   # generate data for the misspecified model
-  data <- par_fun(mod_misspec, function(net) {
+  data <- par_fun(m_net_ls, function(net) {
     ggm_dt_sim(net = net, iter = iter, n = n, ordinal = ordinal,
                n_levels = n_levels, skew_factor = skew_factor,
                type = type, missing = missing, par_fun = par_fun) %>% suppressWarnings
@@ -257,7 +269,8 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_leve
 
   return(list(
     misspec_fit = misspec_fit,
-    mod_misspec = mod_misspec
+    mod_misspec = m_net_ls,
+    added_edges = mod_misspec$added_edges
   ))
 
 }
