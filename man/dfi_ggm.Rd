@@ -7,25 +7,26 @@
 dfi_ggm(
   net,
   power = 0.8,
-  n_misspec = 3,
+  n_misspec = 5,
   iter = 200,
   n = 500,
   prop_pos = 0.8,
   ordinal = FALSE,
   n_levels = 4,
   skew_factor = 1,
+  min_extra = 0.15,
   type = c("uniform", "random"),
   missing = 0,
   ncores = 1
 )
 }
 \arguments{
-\item{net}{The empirical network to estimate dynamic fit index cutoffs for}
+\item{net}{The empirical network to estimate dynamic fit index cutoffs for; Input should be a matrix}
 
 \item{power}{The power that the cutoff value aims for}
 
-\item{n_misspec}{Number of mis-specified model you want in the simulation. Default to 3, meaning
-there are five mis-specified models with 1, 2, ..., 3 extra edges respectively.
+\item{n_misspec}{Number of mis-specified model you want in the simulation. Default to 5, meaning
+there are five mis-specified models with 1, 2, ..., 5 extra edges respectively.
 Avoid setting too large numbers. Otherwise the simulation might fail or take too long.}
 
 \item{iter}{The number of iterations used in your simulation.}
