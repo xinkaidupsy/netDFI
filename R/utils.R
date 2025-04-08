@@ -158,7 +158,7 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos, min_extra) {
 
     # Get minimum absolute value of edge weights to use for new edges
     # set to be no smaller than min_extra
-    min_abs_edge <- max(min(abs(edge_vec)), min_extra)
+    # min_abs_edge <- max(min(abs(edge_vec)), min_extra)
 
     # Create a list to store resulting networks
     result_networks <- list()
@@ -183,10 +183,10 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos, min_extra) {
         mod_misspec <- net
 
         # Generate edge weights with random signs
-        edges_to_add[[k]]$added_edges <- min_abs_edge * sample(c(1, -1),
-                                                               nrow(edges_to_add[[k]]),
-                                                               prob = c(prop_pos, 1-prop_pos),
-                                                               replace = TRUE)
+        edges_to_add[[k]]$added_edges <- min_extra * sample(c(1, -1),
+                                                            nrow(edges_to_add[[k]]),
+                                                            prob = c(prop_pos, 1-prop_pos),
+                                                            replace = TRUE)
 
         # Add each edge with the determined weight
         for (i in 1:nrow(edges_to_add[[k]])) {
