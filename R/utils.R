@@ -248,24 +248,21 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_leve
   }) %>% suppressWarnings
 
   # getting the cna that fits the empirical model to the data simulated from the misspec model
-  misspec_cna <- par_fun(data, function(dt) {
-    m_c <- par_fun(dt, function(d) {
-      m_c <- psychonetrics::ggm(d, omega = adj_net) %>% psychonetrics::runmodel()
-    }) %>% suppressWarnings
-  }) %>% suppressWarnings
-
-  # getting the fit of misspec model
-  misspec_fit <- par_fun(misspec_cna, function(mc) {
-    mf <- par_fun(mc, function(m){
-      silent_fit(m) %>%
+  misspec_fit <- par_fun(data, function(mod) {
+    m_f <- par_fun(mod, function(dt) {
+      f <- psychonetrics::ggm(dt, omega = adj_net) %>%
+        psychonetrics::runmodel(addMIs = FALSE,
+                                addSEs = FALSE,
+                                addInformation = FALSE) %>%
+        silent_fit %>%
         filter(Measure %in% c("cfi", "rmsea", "tli")) %>%
         mutate(Measure = NULL, Value = round(Value, 3)) %>%
         t %>% as.data.frame %>%
         `colnames<-`(c("TLI_M","CFI_M","RMSEA_M")) %>%
         mutate(Model = "misspec")
-    }) %>% bind_rows %>%
+    }) %>% suppressWarnings %>% bind_rows %>%
       `rownames<-`(paste0("iter", 1:nrow(.)))
-  })
+  }) %>% suppressWarnings
 
   return(list(
     misspec_fit = misspec_fit,
@@ -285,20 +282,22 @@ ggm_fit_true <- function(net, adj_net, iter, n, ordinal, n_levels, skew_factor, 
                      type = type, missing = missing, par_fun = par_fun) %>% suppressWarnings
 
   # getting the true model
-  true_cna <- par_fun(data, function(dt) {
-    psychonetrics::ggm(dt, omega = adj_net) %>% psychonetrics::runmodel()
-  }) %>% suppressWarnings
-
-  # getting the true model fit
-  true_fit <- par_fun(true_cna, function(m) {
-    silent_fit(m) %>%
+  true_fit <- par_fun(data, function(dt) {
+    psychonetrics::ggm(dt, omega = adj_net) %>%
+      psychonetrics::runmodel(addMIs = FALSE,
+                              addSEs = FALSE,
+                              addInformation = FALSE) %>%
+      silent_fit %>%
       filter(Measure %in% c("cfi", "rmsea", "tli")) %>%
       mutate(Measure = NULL, Value = round(Value, 3)) %>%
       t %>% as.data.frame %>%
       `colnames<-`(c("TLI_T","CFI_T","RMSEA_T")) %>%
       mutate(Model = "true")
-  }) %>% bind_rows %>%
+  }) %>% suppressWarnings %>%
+    bind_rows %>%
     `rownames<-`(paste0("iter", 1:nrow(.))) %>% list
+
+  return(true_fit)
 
 }
 

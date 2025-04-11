@@ -100,33 +100,31 @@ dfi_ggm <- function(net, power = 0.8, n_misspec = 5, iter = 200, n = 500, prop_p
   final<-list()
 
   # calculate sensitivity based on misspec dist & power
-  for (i in 1:length(misspec_fit)) {
+  final <- par_fun(1:length(misspec_fit), function(i) {
+    # Create data frame directly
+    fit_i <- data.frame(misspec_sum[[i]], true_sum, Power = seq(.95, 0.0, -.01))
 
-    fit[[i]]<-cbind(misspec_sum[[i]], true_sum)
-    fit[[i]]$Power<-seq(.95, 0.0, -.01)
+    # Add comparison columns
+    fit_i$TLI <- ifelse(fit_i$TLI_M <= fit_i$TLI_T, 1, 0)
+    fit_i$RMSEA <- ifelse(fit_i$RMSEA_M >= fit_i$RMSEA_T, 1, 0)
+    fit_i$CFI <- ifelse(fit_i$CFI_M <= fit_i$CFI_T, 1, 0)
 
-    # Verify whether value representing the top 5% of fit in the misspecified model is actually
-    # worse than the value representing the bottom 5% of fit in the true distribution.
-    # if yes, this value representing top 5% in misspec dist is the dynamic cutoff of sensitivity = 0.95 & specificity = 0.95;
-    # if not, find out the cutoff that allows such specificity in the misspec dist;
-    # this value will be the cutoff and its percentile is this value's sensitivity
-    fit[[i]]$TLI<-ifelse(fit[[i]]$TLI_M <= fit[[i]]$TLI_T, 1, 0)
-    fit[[i]]$RMSEA<-ifelse(fit[[i]]$RMSEA_M >= fit[[i]]$RMSEA_T, 1, 0)
-    fit[[i]]$CFI<-ifelse(fit[[i]]$CFI_M <= fit[[i]]$CFI_T, 1, 0)
-    TLI[[i]]<-subset(fit[[i]], subset=(!duplicated(fit[[i]][('TLI')])|fit[[i]][('Power')]==0), select=c("TLI_M","Power","TLI")) %>% filter(TLI==1|Power==0)
-    RMSEA[[i]]<-subset(fit[[i]], subset=(!duplicated(fit[[i]][('RMSEA')])|fit[[i]][('Power')]==0), select=c("RMSEA_M","Power","RMSEA")) %>% filter(RMSEA==1|Power==0)
-    CFI[[i]]<-subset(fit[[i]], subset=(!duplicated(fit[[i]][('CFI')])|fit[[i]][('Power')]==0), select=c("CFI_M","Power","CFI"))  %>% filter(CFI==1|Power==0)
+    # Process each fit index and combine directly
+    tli_subset <- subset(fit_i, !duplicated(TLI) | Power == 0, c("TLI_M", "Power", "TLI"))
+    tli <- tli_subset[tli_subset$TLI == 1 | tli_subset$Power == 0, 1:2]
+    colnames(tli) <- c("TLI", "sensitivity_tli")
 
-    # rename columns
-    colnames(TLI[[i]])<-c("TLI","sensitivity_tli")
-    colnames(RMSEA[[i]])<-c("RMSEA","sensitivity_rmsea")
-    colnames(CFI[[i]])<-c("CFI","sensitivity_cfi")
+    rmsea_subset <- subset(fit_i, !duplicated(RMSEA) | Power == 0, c("RMSEA_M", "Power", "RMSEA"))
+    rmsea <- rmsea_subset[rmsea_subset$RMSEA == 1 | rmsea_subset$Power == 0, 1:2]
+    colnames(rmsea) <- c("RMSEA", "sensitivity_rmsea")
 
-    # output the sensitivity & cutoff values
-    final[[i]]<-cbind(TLI[[i]][1,],RMSEA[[i]][1,],CFI[[i]][1,])
-    final[[i]]<-final[[i]][c("TLI","sensitivity_tli","RMSEA","sensitivity_rmsea","CFI","sensitivity_cfi")]
+    cfi_subset <- subset(fit_i, !duplicated(CFI) | Power == 0, c("CFI_M", "Power", "CFI"))
+    cfi <- cfi_subset[cfi_subset$CFI == 1 | cfi_subset$Power == 0, 1:2]
+    colnames(cfi) <- c("CFI", "sensitivity_cfi")
 
-  }
+    # Create and return only the final result
+    cbind(tli[1,], rmsea[1,], cfi[1,])[c("TLI", "sensitivity_tli", "RMSEA", "sensitivity_rmsea", "CFI", "sensitivity_cfi")]
+  })
 
   # dynamic cutoff that correspond to the chosen power
   L0 <- data.frame(cbind(true_sum[[1]]$TLI_T,power,
