@@ -93,12 +93,6 @@ dfi_ggm <- function(net, power = 0.8, n_misspec = 5, iter = 200, n = 500, prop_p
                    CFI_T=stats::quantile(CFI_T, c(1-power)))
   })
 
-  fit<-list()
-  TLI<-list()
-  RMSEA<-list()
-  CFI<-list()
-  final<-list()
-
   # calculate sensitivity based on misspec dist & power
   final <- par_fun(1:length(misspec_fit), function(i) {
     # Create data frame directly
