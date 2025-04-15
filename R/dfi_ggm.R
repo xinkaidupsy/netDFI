@@ -81,51 +81,139 @@ dfi_ggm <- function(net, power = 0.8, n_misspec = 5, iter = 200, n = 500, prop_p
   # 95% percentile of TLI & CFI; 5% of RMSEA
   # ideally these values also performs worse than 95% of the values in the true distribution (if power = 0.95)
   misspec_sum <- par_fun(misspec_fit, function(df) {
-    dplyr::reframe(df,TLI_M=stats::quantile(TLI_M, c(seq(0.95,0,-0.01))),
-                   RMSEA_M=stats::quantile(RMSEA_M, c(seq(0.05,1,0.01))),
-                   CFI_M=stats::quantile(CFI_M, c(seq(0.95,0,-0.01))))
+    reframe(df,TLI_M=stats::quantile(TLI_M, c(seq(0.95,0,-0.01))),
+            RMSEA_M=stats::quantile(RMSEA_M, c(seq(0.05,1,0.01))),
+            CFI_M=stats::quantile(CFI_M, c(seq(0.95,0,-0.01))))
   })
 
   # find in the true distribution the value that marks power = power
-  true_sum <- par_fun(true_fit, function(df) {
-    dplyr::reframe(df,TLI_T=stats::quantile(TLI_T, c(1-power)),
-                   RMSEA_T=stats::quantile(RMSEA_T, c(power)),
-                   CFI_T=stats::quantile(CFI_T, c(1-power)))
-  })
+  true_cut <- true_fit %>%
+    reframe(TLI_T=stats::quantile(TLI_T, c(1-power)),
+            RMSEA_T=stats::quantile(RMSEA_T, c(power)),
+            CFI_T=stats::quantile(CFI_T, c(1-power)))
 
   # calculate sensitivity based on misspec dist & power
   final <- par_fun(1:length(misspec_fit), function(i) {
     # Create data frame directly
-    fit_i <- data.frame(misspec_sum[[i]], true_sum, Power = seq(.95, 0.0, -.01))
+    fit_i <- data.frame(misspec_sum[[i]], true_cut, Power = seq(.95, 0.0, -.01))
 
     # Add comparison columns
-    fit_i$TLI <- ifelse(fit_i$TLI_M <= fit_i$TLI_T, 1, 0)
-    fit_i$RMSEA <- ifelse(fit_i$RMSEA_M >= fit_i$RMSEA_T, 1, 0)
-    fit_i$CFI <- ifelse(fit_i$CFI_M <= fit_i$CFI_T, 1, 0)
+    fit_i$TLI_sens <- ifelse(fit_i$TLI_M <= fit_i$TLI_T, 1, 0)
+    fit_i$RMSEA_sens <- ifelse(fit_i$RMSEA_M >= fit_i$RMSEA_T, 1, 0)
+    fit_i$CFI_sens <- ifelse(fit_i$CFI_M <= fit_i$CFI_T, 1, 0)
 
-    # Process each fit index and combine directly
-    tli_subset <- subset(fit_i, !duplicated(TLI) | Power == 0, c("TLI_M", "Power", "TLI"))
-    tli <- tli_subset[tli_subset$TLI == 1 | tli_subset$Power == 0, 1:2]
-    colnames(tli) <- c("TLI", "sensitivity_tli")
+    # HB cutoffs
+    fit_i$TLI_HB <- 0.95
+    fit_i$RMSEA_HB <- 0.05
+    fit_i$CFI_HB <- 0.95
 
-    rmsea_subset <- subset(fit_i, !duplicated(RMSEA) | Power == 0, c("RMSEA_M", "Power", "RMSEA"))
-    rmsea <- rmsea_subset[rmsea_subset$RMSEA == 1 | rmsea_subset$Power == 0, 1:2]
-    colnames(rmsea) <- c("RMSEA", "sensitivity_rmsea")
+    # HB sensitivity
+    fit_i$TLI_HB_sens <- ifelse(fit_i$TLI_M <= 0.95, 1, 0)
+    fit_i$RMSEA_HB_sens <- ifelse(fit_i$RMSEA_M >= 0.05, 1, 0)
+    fit_i$CFI_HB_sens <- ifelse(fit_i$CFI_M <= 0.95, 1, 0)
 
-    cfi_subset <- subset(fit_i, !duplicated(CFI) | Power == 0, c("CFI_M", "Power", "CFI"))
-    cfi <- cfi_subset[cfi_subset$CFI == 1 | cfi_subset$Power == 0, 1:2]
-    colnames(cfi) <- c("CFI", "sensitivity_cfi")
+    # Calculate the sensitivity of DFI
+    tli <- fit_i %>% filter(!duplicated(TLI_sens) | Power == 0) %>%
+      select(TLI_M, Power, TLI_sens) %>%
+      filter(TLI_sens == 1 | Power == 0) %>%
+      select(TLI_M, Power) %>%
+    `colnames<-`(c("TLI", "sensitivity_tli"))
+
+    rmsea <- fit_i %>% filter(!duplicated(RMSEA_sens) | Power == 0) %>%
+      select(RMSEA_M, Power, RMSEA_sens) %>%
+      filter(RMSEA_sens == 1 | Power == 0) %>%
+      select(RMSEA_M, Power) %>%
+      `colnames<-`(c("RMSEA", "sensitivity_rmsea"))
+
+    cfi <- fit_i %>% filter(!duplicated(CFI_sens) | Power == 0) %>%
+      select(CFI_M, Power, CFI_sens) %>%
+      filter(CFI_sens == 1 | Power == 0) %>%
+      select(CFI_M, Power) %>%
+      `colnames<-`(c("CFI", "sensitivity_cfi"))
+
+    # calculate the sensitivity of HB cutoffs
+    tli_HB <- fit_i %>% filter(!duplicated(TLI_HB_sens) | Power == 0) %>%
+      select(TLI_HB, Power, TLI_HB_sens) %>%
+      filter(TLI_HB_sens == 1 | Power == 0) %>%
+      select(TLI_HB, Power) %>%
+      `colnames<-`(c("TLI_HB", "sensitivity_tli_HB"))
+
+    rmsea_HB <- fit_i %>% filter(!duplicated(RMSEA_HB_sens) | Power == 0) %>%
+      select(RMSEA_HB, Power, RMSEA_HB_sens) %>%
+      filter(RMSEA_HB_sens == 1 | Power == 0) %>%
+      select(RMSEA_HB, Power) %>%
+      `colnames<-`(c("RMSEA_HB", "sensitivity_rmsea_HB"))
+
+    cfi_HB <- fit_i %>% filter(!duplicated(CFI_HB_sens) | Power == 0) %>%
+      select(CFI_HB, Power, CFI_HB_sens) %>%
+      filter(CFI_HB_sens == 1 | Power == 0) %>%
+      select(CFI_HB, Power) %>%
+      `colnames<-`(c("CFI_HB", "sensitivity_cfi_HB"))
 
     # Create and return only the final result
-    cbind(tli[1,], rmsea[1,], cfi[1,])[c("TLI", "sensitivity_tli", "RMSEA", "sensitivity_rmsea", "CFI", "sensitivity_cfi")]
+    cbind(
+      tli[1,], rmsea[1,], cfi[1,],
+      tli_HB[1,], rmsea_HB[1,], cfi_HB[1,]
+      )[c("TLI", "sensitivity_tli",
+          "RMSEA", "sensitivity_rmsea",
+          "CFI", "sensitivity_cfi",
+          "TLI_HB", "sensitivity_tli_HB",
+          "RMSEA_HB", "sensitivity_rmsea_HB",
+          "CFI_HB", "sensitivity_cfi_HB")]
   })
 
-  # dynamic cutoff that correspond to the chosen power
-  L0 <- data.frame(cbind(true_sum[[1]]$TLI_T,power,
-                         true_sum[[1]]$RMSEA_T,power,
-                         true_sum[[1]]$CFI_T),power) %>%
-    `colnames<-`(c("TLI","power_tli","RMSEA","power_rmsea","CFI","power_cfi")) %>%
+  # find the power percentile for true
+  true_sum <- true_fit %>%
+    reframe(TLI_T=stats::quantile(TLI_T, c(seq(0.05,1,0.01))),
+            RMSEA_T=stats::quantile(RMSEA_T, c(seq(0.95,0,-0.01))),
+            CFI_T=stats::quantile(CFI_T, c(seq(0.05,1,0.01)))) %>%
+    mutate(Power = seq(.95, 0.0, -.01))
+
+  # HB cutoffs
+  true_sum$TLI_HB <- 0.95
+  true_sum$RMSEA_HB <- 0.05
+  true_sum$CFI_HB <- 0.95
+
+  # HB power
+  true_sum$TLI_HB_spec <- ifelse(true_sum$TLI_T >= 0.95, 1, 0)
+  true_sum$RMSEA_HB_spec <- ifelse(true_sum$RMSEA_T <= 0.05, 1, 0)
+  true_sum$CFI_HB_spec <- ifelse(true_sum$CFI_T >= 0.95, 1, 0)
+
+  # calculate the sensitivity of HB cutoffs
+  tli_HB <- true_sum %>% filter(!duplicated(TLI_HB_spec) | Power == 0) %>%
+    select(TLI_HB, Power, TLI_HB_spec) %>%
+    filter(TLI_HB_spec == 1 | Power == 0) %>%
+    select(TLI_HB, Power) %>%
+    `colnames<-`(c("TLI_HB", "power_tli_HB"))
+
+  rmsea_HB <- true_sum %>% filter(!duplicated(RMSEA_HB_spec) | Power == 0) %>%
+    select(RMSEA_HB, Power, RMSEA_HB_spec) %>%
+    filter(RMSEA_HB_spec == 1 | Power == 0) %>%
+    select(RMSEA_HB, Power) %>%
+    `colnames<-`(c("RMSEA_HB", "power_rmsea_HB"))
+
+  cfi_HB <- true_sum %>% filter(!duplicated(CFI_HB_spec) | Power == 0) %>%
+    select(CFI_HB, Power, CFI_HB_spec) %>%
+    filter(CFI_HB_spec == 1 | Power == 0) %>%
+    select(CFI_HB, Power) %>%
+    `colnames<-`(c("CFI_HB", "power_cfi_HB"))
+
+  # L0 specificity to misspecification
+  L0 <- cbind(
+    true_cut$TLI_T,power,
+    true_cut$RMSEA_T,power,
+    true_cut$CFI_T,power,
+    tli_HB[1,], rmsea_HB[1,], cfi_HB[1,]
+  ) %>%
+    `names<-`(c("TLI", "specificity_tli",
+                "RMSEA", "specificity_rmsea",
+                "CFI", "specificity_cfi",
+                "TLI_HB", "specificity_tli_HB",
+                "RMSEA_HB", "specificity_rmsea_HB",
+                "CFI_HB", "specificity_cfi_HB")) %>%
     round(3) %>% mutate(mis_level = "L0")
+
+
 
   # fit value cutoffs & their sensitivity to the misspec models
   Ls <- bind_rows(final) %>% round(3) %>% mutate(mis_level = paste0("L",1:nrow(.)))

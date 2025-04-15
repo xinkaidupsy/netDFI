@@ -293,7 +293,7 @@ ggm_fit_true <- function(net, adj_net, iter, n, ordinal, n_levels, skew_factor, 
         mutate(Model = "true")
   }) %>% suppressWarnings %>%
     bind_rows %>%
-    `rownames<-`(paste0("iter", 1:nrow(.))) %>% list
+    `rownames<-`(paste0("iter", 1:nrow(.)))
 
   return(true_fit)
 
