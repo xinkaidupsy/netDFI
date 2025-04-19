@@ -241,26 +241,32 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_leve
   misspec_fit <-
     # generate data for the misspecified model
     par_fun(m_net_ls, function(net) {
-    ggm_dt_sim(net = net, iter = iter, n = n, ordinal = ordinal,
-               n_levels = n_levels, skew_factor = skew_factor,
-               type = type, missing = missing, par_fun = par_fun) %>% suppressWarnings
-  }) %>%
+      ggm_dt_sim(net = net, iter = iter, n = n, ordinal = ordinal,
+                 n_levels = n_levels, skew_factor = skew_factor,
+                 type = type, missing = missing, par_fun = par_fun) %>% suppressWarnings
+    }) %>%
     # get cna model & fit based on the data
     par_fun(function(mod) {
       par_fun(mod, function(dt) {
-        psychonetrics::ggm(dt, omega = adj_net) %>%
+        fit_result <- psychonetrics::ggm(dt, omega = adj_net) %>%
           psychonetrics::runmodel(addMIs = FALSE,
                                   addSEs = FALSE,
-                                  addInformation = FALSE) %>%
-          silent_fit %>%
-          filter(Measure %in% c("cfi", "rmsea", "tli")) %>%
-          mutate(Measure = NULL, Value = round(Value, 3)) %>%
-          t %>% as.data.frame %>%
-          `colnames<-`(c("TLI_M","CFI_M","RMSEA_M")) %>%
-          mutate(Model = "misspec")
+                                  addInformation = FALSE) %>% silent_fit
+
+        # in case model estimation fails, set fit to NA so that other fit are returned
+        tryCatch({
+          fit_result %>%
+            filter(Measure %in% c("cfi", "rmsea", "tli")) %>%
+            mutate(Measure = NULL, Value = round(Value, 3)) %>%
+            t %>% as.data.frame %>%
+            `colnames<-`(c("TLI_M","CFI_M","RMSEA_M")) %>%
+            mutate(Model = "misspec")
+        }, error = function(e) {
+          data.frame(TLI_M = NA, CFI_M = NA, RMSEA_M = NA, Model = "misspec")
+        })
       }) %>% suppressWarnings %>% bind_rows %>%
         `rownames<-`(paste0("iter", 1:nrow(.)))
-  }) %>% suppressWarnings
+    }) %>% suppressWarnings
 
   return(list(
     misspec_fit = misspec_fit,

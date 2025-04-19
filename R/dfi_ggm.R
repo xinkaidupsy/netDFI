@@ -81,9 +81,9 @@ dfi_ggm <- function(net, power = 0.8, n_misspec = 5, iter = 200, n = 500, prop_p
   # 95% percentile of TLI & CFI; 5% of RMSEA
   # ideally these values also performs worse than 95% of the values in the true distribution (if power = 0.95)
   misspec_sum <- par_fun(misspec_fit, function(df) {
-    reframe(df,TLI_M=stats::quantile(TLI_M, c(seq(0.95,0,-0.01))),
-            RMSEA_M=stats::quantile(RMSEA_M, c(seq(0.05,1,0.01))),
-            CFI_M=stats::quantile(CFI_M, c(seq(0.95,0,-0.01))))
+    reframe(df,TLI_M=stats::quantile(TLI_M, c(seq(0.95,0,-0.01)), na.rm = TRUE),
+            RMSEA_M=stats::quantile(RMSEA_M, c(seq(0.05,1,0.01)), na.rm = TRUE),
+            CFI_M=stats::quantile(CFI_M, c(seq(0.95,0,-0.01)), na.rm = TRUE))
   })
 
   # find in the true distribution the value that marks power = power
