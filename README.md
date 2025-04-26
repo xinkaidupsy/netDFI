@@ -25,12 +25,20 @@ library(psychonetrics)
 library(dplyr)
 library(netDFI)
 
+# get the big five inventory data from psych
 data(bfi)
 
+# estimate ggm 
 bfi_mod <- ggm(bfi) %>% prune %>% runmodel     
 
+# obtain the partial correlation matrix
 bfi_net <- getmatrix(bfi_mod, "omega")
 
-dfi_bfi <- dfi_ggm(bfi_net)
+# allow future_apply to use more memory
+options(future.globals.maxSize = 1024 * 1024^2)
+
+# run dfi
+dfi_bfi <- dfi_ggm(bfi_net, ncores = 8, power = 0.95, iter = 500)
+
 ```
 

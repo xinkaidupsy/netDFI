@@ -29,7 +29,7 @@ utils::globalVariables(c(
 #' @importFrom psychonetrics ggm
 #' @export dfi_ggm
 
-dfi_ggm <- function(net, power = 0.8, n_misspec = 5, iter = 200, n = 500, prop_pos = 0.8,
+dfi_ggm <- function(net, power = 0.95, n_misspec = 5, iter = 500, n = 500, prop_pos = 0.8,
                     ordinal = FALSE, n_levels = 4, skew_factor = 1, min_extra = 0.15,
                     type = c("uniform", "random"), missing = 0, ncores = 1) {
 
