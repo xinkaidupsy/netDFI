@@ -312,7 +312,7 @@ fit_data <- function(true_fit, misspec_fit, par_fun){
   })
 
   #Create beginning of variable name for each
-  dat_name <- rep(c("TLI_L","RMSEA_L","CFI_L","Type_L"),2)
+  dat_name <- rep(c("TLI_L","CFI_L","RMSEA_L","Type_L"),2)
 
   #Create vector of 0's for the True model
   dat_0 <- rep(0,4)
