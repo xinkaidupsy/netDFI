@@ -213,8 +213,6 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 5, iter = 500, n = 500, prop_
                 "CFI_HB", "specificity_cfi_HB")) %>%
     round(3) %>% mutate(mis_level = "L0")
 
-
-
   # fit value cutoffs & their sensitivity to the misspec models
   Ls <- bind_rows(final) %>% round(3) %>% mutate(mis_level = paste0("L",1:nrow(.)))
 
@@ -232,39 +230,76 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 5, iter = 500, n = 500, prop_
   # assign class to summarize
   class(res) <- "dfi_ggm"
 
-  return(res)
+  invisible(res)
 
 }
 
 
-#' #' The invariance partial pruning (IVPP) algorithm for panel GVAR models
-#' #'
-#' #' Plot the fit distribution
-#' #'
-#' #' @param net The empirical network to estimate dynamic fit index cutoffs for
-#' #' @param power The power that the cutoff value aims for
-#' #' @param iter The number of iterations used in your simulation.
-#' #' @param n Your sample size
-#' #' @param prop_pos Decide the proportion of positive in the extra edges added to the empirical network to create the mis-specified network
-#' #' @param ordinal Logical; should ordinal data be generated?
-#' #' @param n_levels Number of levels used in ordinal data.
-#' #' @param skew_factor How skewed should ordinal data be? 1 indicates uniform data and higher values increase skewedness.
-#' #' @param type Should thresholds for ordinal data be sampled at random or determined uniformly?
-#' #' @param missing Proportion of data that should be simulated to be missing.
-#' #' @param ncores How many cores you want to use in the simulation. Recommend to leave one core free so that other tasks in the system are not impacted.
-#' #' @param n_misspec Number of mis-specified model you want in the simulation. Default to 5, meaning
-#' #' there are five mis-specified models with 1, 2, ..., 5 extra edges respectively.
-#' #' Avoid setting too large numbers. Otherwise the simulation might fail or take too long.
-#' #'
-#' #' @return An object of class dfi_ggm. Can use summary to view a summary of results
-#' #'
-#' #'
-#' #' @import dplyr future future.apply
-#' #' @importFrom bootnet ggmGenerator
-#' #' @importFrom psychonetrics ggm
-#' #' @export dfi_ggm
-#' #'
+#' Plot functions
 #'
-#' plot.dfi_ggm <- function() {
+#' Plot the fit distribution
 #'
-#' }
+#' @param x an object of class dfi_ggm
+#' @return Plots
+#'
+#'
+#' @import dplyr ggplot2 patchwork
+#' @export
+#'
+#'
+plot.dfi_ggm <- function(x) {
+
+  # Check if object has the right class
+  if (!inherits(x, "dfi_ggm")) {
+    stop("Object must be of class 'dfi_ggm'")
+  }
+
+  # obtain L0 & Ls data
+  L0 <- x$fit %>%
+    select(matches("L0")) %>%
+    `colnames<-`(c("TLI", "RMSEA", "CFI")) %>%
+    `rownames<-`(NULL) %>%
+    mutate(Model = "true")
+
+  Ls <- lapply(seq_len(nrow(x$cutoff_misspec)), function(i){
+    x$fit %>%
+      select(matches(paste0("L",i))) %>%
+      `colnames<-`(c("TLI", "RMSEA", "CFI")) %>%
+      `rownames<-`(NULL) %>%
+      mutate(Model = "misspecified")
+  })
+
+  # merge to create plot data
+  plot_dt <- lapply(Ls, function(x){
+    rbind(x, L0)
+  })
+
+  # plot
+  p_patched <- lapply(seq_along(plot_dt), function(i) {
+
+    p <- lapply(c("TLI", "RMSEA", "CFI"), function(index) {
+      ggplot2::ggplot(plot_dt[[i]], aes(x = get(index), fill = Model)) +
+        geom_histogram(position = "identity", bins=30, alpha = 0.5) +
+        scale_fill_brewer(palette = "Set1") +
+        geom_vline(aes(xintercept = x[["cutoff_misspec"]][[index]][i],
+                       linetype = "Dynamic cutoff")) +
+        geom_vline(aes(xintercept = x[["cutoff_misspec"]][[paste0(index,"_HB")]][i],
+                       linetype = "Hu & Bentler cutoff")) +
+        scale_linetype_manual(values = c("Dynamic cutoff" = "longdash",
+                                         "Hu & Bentler cutoff" = "dotted")) +
+        labs(y = "", x = index, linetype = "Cutoffs") +
+        theme_classic() +
+        theme(axis.text.y = element_blank(),
+              axis.ticks.y = element_blank())
+    }) %>% setNames(c("TLI", "RMSEA", "CFI"))
+
+    patchwork::wrap_plots(p) +
+      plot_layout(guides = "collect") +
+      plot_annotation(paste("Level", i)) &
+      theme(legend.position = 'bottom')
+
+  })
+
+  return(p_patched)
+
+}

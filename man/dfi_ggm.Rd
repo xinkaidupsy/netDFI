@@ -6,9 +6,9 @@
 \usage{
 dfi_ggm(
   net,
-  power = 0.8,
+  power = 0.95,
   n_misspec = 5,
-  iter = 200,
+  iter = 500,
   n = 500,
   prop_pos = 0.8,
   ordinal = FALSE,

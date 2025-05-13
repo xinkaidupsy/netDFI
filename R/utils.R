@@ -260,7 +260,10 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_leve
             mutate(Measure = NULL, Value = round(Value, 3)) %>%
             t %>% as.data.frame %>%
             `colnames<-`(c("TLI_M","CFI_M","RMSEA_M")) %>%
-            mutate(Model = "misspec")
+            mutate(Model = "misspec",
+                   TLI_M = case_when(TLI_M >= 1.2 | TLI_M < 0 ~ NA, TRUE ~ TLI_M),
+                   RMSEA_M = case_when(RMSEA_M >= 1 | RMSEA_M < 0 ~ NA, TRUE ~ RMSEA_M),
+                   CFI_M = case_when(CFI_M >= 1.2 | CFI_M < 0 ~ NA, TRUE ~ CFI_M))
         }, error = function(e) {
           data.frame(TLI_M = NA, CFI_M = NA, RMSEA_M = NA, Model = "misspec")
         })
