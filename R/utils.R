@@ -74,20 +74,31 @@ edge_df <- function(net){
   r2_sum <- matrix(r2, nrow = nrow(net), ncol = ncol(net)) +
     matrix(r2, nrow = nrow(net), ncol = ncol(net), byrow = TRUE)
 
-  # avoid selecting diagnal and locations where there is already an edge
-  r2_sum[net != 0] <- -2
-  diag(r2_sum) <- -2
+  r2_sum[net!=0] <- 2
+  diag(r2_sum) <- 2
 
-  # rank priorities based on summed predictability; here the weights are summed predictabilities
-  # edges that connect nodes of low predictability are prioritized
+  # browser()
+
+  # edge_df <- net2vec(r2_sum) %>%
+  #   filter(weights != 2L) %>%
+  #   arrange(desc(weights)) %>%
+  #   mutate(from = as.numeric(gsub("V(\\d+)--V\\d+", "\\1", loc)),
+  #          to = as.numeric(gsub("V\\d+--V(\\d+)", "\\1", loc)))
+
+  # # avoid selecting diagnal and locations where there is already an edge
+  # r2_sum[net != 0] <- -2
+  # diag(r2_sum) <- -2
+  #
+  # # rank priorities based on summed predictability; here the weights are summed predictabilities
+  # # edges that connect nodes of high predictability are prioritized because they impact the implied covariance to the largest extent
   edge_df <- net2vec(r2_sum) %>%
+    filter(weights != 2L) %>%
     arrange(desc(weights)) %>%
     mutate(priority = dense_rank(desc(weights)),
            from = as.numeric(gsub("V(\\d+)--V\\d+", "\\1", loc)),
-           to = as.numeric(gsub("V\\d+--V(\\d+)", "\\1", loc))) %>%
-    filter(weights != -2L)
-
-  return(edge_df)
+           to = as.numeric(gsub("V\\d+--V(\\d+)", "\\1", loc)))
+  #
+  # return(edge_df)
 
 }
 
@@ -95,57 +106,16 @@ edge_df <- function(net){
 # select candidate edges from the full edge list
 select_edges <- function(edge_df, max_round, n_misspec) {
 
-  # Create a list to store results for different starting points
-  all_results <- list()
+  edge_ls <- vector(mode = "list", length = max_round)
 
-  # For each starting row
-  for (start_idx in 1:min(max_round, nrow(edge_df))) {
-    # Create a sub-list for different edge counts
-    model_results <- list()
-
-    # Reorder edges to start from start_idx
-    reordered_edges <- rbind(
-      edge_df[start_idx:nrow(edge_df), ],
-      if(start_idx > 1) edge_df[1:(start_idx-1), ] else NULL
-    )
-
-    # For each requested size (1 to n_misspec)
-    for (k in 1:n_misspec) {
-      # Initialize variables
-      selected_edges <- edge_df[0, ]  # Empty data frame with same structure
-      used_nodes <- c()
-
-      # Go through each edge in the reordered dataframe
-      for (i in 1:nrow(reordered_edges)) {
-        # Get the current row
-        current_edge <- reordered_edges[i, ]
-
-        # Get the nodes of this edge
-        from_node <- current_edge$from
-        to_node <- current_edge$to
-
-        # Check if either node is already used
-        if (!(from_node %in% used_nodes || to_node %in% used_nodes)) {
-          # Add this edge
-          selected_edges <- rbind(selected_edges, current_edge)
-          used_nodes <- c(used_nodes, from_node, to_node)
-        }
-
-        # If we've selected k edges, stop
-        if (nrow(selected_edges) == k) {
-          break
-        }
-      }
-
-      # Add the selected edges to results
-      model_results[[k]] <- selected_edges
+  for(i in 1:max_round){
+    for(j in 1:n_misspec){
+      # start from the ith row, select j rows
+      edge_ls[[i]][[j]] <- edge_df[i:nrow(edge_df),][seq_len(j),]
     }
-
-    # Store all models for this starting point
-    all_results[[start_idx]] <- model_results
   }
 
-  return(all_results)
+  return(edge_ls)
 }
 
 # ----- create misspecification -----
