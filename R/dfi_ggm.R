@@ -44,6 +44,15 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 5, iter = 500, n = 500, prop_
     par_fun <- lapply
   }
 
+  # assign row&colnames if there's none
+  if (is.null(rownames(net))) {
+    rownames(net) <- paste0("V", 1:nrow(net))
+  }
+
+  if (is.null(colnames(net))) {
+    colnames(net) <- paste0("V", 1:ncol(net))
+  }
+
   # create adjacency matrix for CNA
   adj_net <- net
   adj_net[adj_net != 0L] <- 1
