@@ -69,14 +69,6 @@ edge_df <- function(net){
     arrange(desc(r2_from)) %>%
     mutate(priority = 1:nrow(.))
 
-  r2_df_to <- data.frame(
-    r2_to = r2,
-    to = as.numeric(gsub("V(\\d+)", "\\1", colnames(net)))
-  ) %>% arrange(r2_to)
-
-  r2_df <- cbind(r2_df_from, r2_df_to) %>%
-    mutate(loc = paste0("V", from, "--", "V", to))
-
   # calculate the summed predictability of nodes connected by each edge
   # this is to find zero-edges
   r2_sum <- matrix(r2, nrow = nrow(net), ncol = ncol(net)) +
