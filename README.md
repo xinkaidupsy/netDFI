@@ -4,7 +4,9 @@
 <!-- badges: start -->
 <!-- badges: end -->
 
-The goal of netDFI is to ...
+The goal of netDFI is to compute dynamic fit index cutoffs for network models. 
+
+[Gaussian graphical models publication]{https://osf.io/preprints/psyarxiv/5wj2y_v1}
 
 ## Installation
 
