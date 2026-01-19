@@ -7,7 +7,7 @@
 dfi_ggm(
   net,
   power = 0.95,
-  n_misspec = 5,
+  n_misspec = 3,
   iter = 500,
   n = 500,
   prop_pos = 0.8,
@@ -25,7 +25,7 @@ dfi_ggm(
 
 \item{power}{The power that the cutoff value aims for}
 
-\item{n_misspec}{Number of mis-specified model you want in the simulation. Default to 5, meaning
+\item{n_misspec}{Number of mis-specified model you want in the simulation. Default to 3, meaning
 there are five mis-specified models with 1, 2, ..., 5 extra edges respectively.
 Avoid setting too large numbers. Otherwise the simulation might fail or take too long.}
 
