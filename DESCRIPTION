@@ -25,4 +25,6 @@ Imports:
     future,
     future.apply,
     psychonetrics,
-    qgraph
+    qgraph,
+    ggplot2,
+    patchwork

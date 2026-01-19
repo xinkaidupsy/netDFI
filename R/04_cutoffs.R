@@ -1,6 +1,4 @@
-utils::globalVariables(c(
-  "TLI_M", "RMSEA_M", "CFI_M", "TLI_T", "RMSEA_T", "CFI_T", "Power"
-))
+
 
 #' Dynamic fit index cutoffs for Gaussian Graphical Model
 #'
@@ -14,6 +12,7 @@ utils::globalVariables(c(
 #' @param ordinal Logical; should ordinal data be generated?
 #' @param n_levels Number of levels used in ordinal data.
 #' @param skew_factor How skewed should ordinal data be? 1 indicates uniform data and higher values increase skewedness.
+#' @param min_extra Minimum absolute edge weight used when adding extra edges to create misspecified models.
 #' @param type Should thresholds for ordinal data be sampled at random or determined uniformly?
 #' @param missing Proportion of data that should be simulated to be missing.
 #' @param ncores How many cores you want to use in the simulation. Recommend to leave one core free so that other tasks in the system are not impacted.
@@ -25,12 +24,10 @@ utils::globalVariables(c(
 #' @author Xinkai Du
 #' Maintainer: Xinkai Du <xinkai.du.xd@gmail.com>
 #'
-#' @import dplyr future future.apply
-#' @importFrom psychonetrics ggm
 #' @export dfi_ggm
 
 dfi_ggm <- function(net, power = 0.95, n_misspec = 5, iter = 500, n = 500, prop_pos = 0.8,
-                    ordinal = FALSE, n_levels = 4, skew_factor = 1, min_extra = 0.15,
+                    ordinal = FALSE, n_levels = 4, skew_factor = 1, min_extra = 0.2,
                     type = c("uniform", "random"), missing = 0, ncores = 1) {
 
   type <- match.arg(type, c("uniform", "random"))
@@ -238,71 +235,3 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 5, iter = 500, n = 500, prop_
 }
 
 
-#' Plot functions
-#'
-#' Plot the fit distribution
-#'
-#' @param x an object of class dfi_ggm
-#' @return Plots
-#'
-#'
-#' @import dplyr ggplot2 patchwork
-#' @export
-#'
-#'
-plot.dfi_ggm <- function(x) {
-
-  # Check if object has the right class
-  if (!inherits(x, "dfi_ggm")) {
-    stop("Object must be of class 'dfi_ggm'")
-  }
-
-  # obtain L0 & Ls data
-  L0 <- x$fit %>%
-    select(matches("L0")) %>%
-    `colnames<-`(c("TLI", "RMSEA", "CFI")) %>%
-    `rownames<-`(NULL) %>%
-    mutate(Model = "true")
-
-  Ls <- lapply(seq_len(nrow(x$cutoff_misspec)), function(i){
-    x$fit %>%
-      select(matches(paste0("L",i))) %>%
-      `colnames<-`(c("TLI", "RMSEA", "CFI")) %>%
-      `rownames<-`(NULL) %>%
-      mutate(Model = "misspecified")
-  })
-
-  # merge to create plot data
-  plot_dt <- lapply(Ls, function(x){
-    rbind(x, L0)
-  })
-
-  # plot
-  p_patched <- lapply(seq_along(plot_dt), function(i) {
-
-    p <- lapply(c("TLI", "RMSEA", "CFI"), function(index) {
-      ggplot2::ggplot(plot_dt[[i]], aes(x = get(index), fill = Model)) +
-        geom_histogram(position = "identity", bins=30, alpha = 0.5) +
-        scale_fill_brewer(palette = "Set1") +
-        geom_vline(aes(xintercept = x[["cutoff_misspec"]][[index]][i],
-                       linetype = "Dynamic cutoff")) +
-        geom_vline(aes(xintercept = x[["cutoff_misspec"]][[paste0(index,"_HB")]][i],
-                       linetype = "Hu & Bentler cutoff")) +
-        scale_linetype_manual(values = c("Dynamic cutoff" = "longdash",
-                                         "Hu & Bentler cutoff" = "dotted")) +
-        labs(y = "", x = index, linetype = "Cutoffs") +
-        theme_classic() +
-        theme(axis.text.y = element_blank(),
-              axis.ticks.y = element_blank())
-    }) %>% setNames(c("TLI", "RMSEA", "CFI"))
-
-    patchwork::wrap_plots(p) +
-      plot_layout(guides = "collect") +
-      plot_annotation(paste("Level", i)) &
-      theme(legend.position = 'bottom')
-
-  })
-
-  return(p_patched)
-
-}
