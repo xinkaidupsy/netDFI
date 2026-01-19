@@ -6,7 +6,7 @@
 
 The goal of netDFI is to compute dynamic fit index cutoffs for network models. 
 
-[Gaussian graphical models publication]{https://osf.io/preprints/psyarxiv/5wj2y_v1}
+Reference for Gaussian graphical models: https://osf.io/preprints/psyarxiv/5wj2y_v1
 
 ## Installation
 
@@ -37,10 +37,21 @@ bfi_mod <- ggm(bfi) %>% prune %>% runmodel
 bfi_net <- getmatrix(bfi_mod, "omega")
 
 # allow future_apply to use more memory
-options(future.globals.maxSize = 1024 * 1024^2)
+options(future.globals.maxSize = 2 * 1024^3)
 
 # run dfi
-dfi_bfi <- dfi_ggm(bfi_net, ncores = 8, power = 0.95, iter = 500)
+dfi_bfi <- dfi_ggm(
+  bfi_net, 
+  ncores = parallel::detectCores(), 
+  power = 0.80, 
+  iter = 200,
+  n_misspec = 2
+)
+dfi_bfi
+
+# plot results
+p <- plot(dfi_bfi)
+p[[1]]
 
 ```
 

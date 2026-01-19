@@ -16,7 +16,7 @@
 #' @param type Should thresholds for ordinal data be sampled at random or determined uniformly?
 #' @param missing Proportion of data that should be simulated to be missing.
 #' @param ncores How many cores you want to use in the simulation. Recommend to leave one core free so that other tasks in the system are not impacted.
-#' @param n_misspec Number of mis-specified model you want in the simulation. Default to 5, meaning
+#' @param n_misspec Number of mis-specified model you want in the simulation. Default to 3, meaning
 #' there are five mis-specified models with 1, 2, ..., 5 extra edges respectively.
 #' Avoid setting too large numbers. Otherwise the simulation might fail or take too long.
 #'
@@ -26,7 +26,7 @@
 #'
 #' @export dfi_ggm
 
-dfi_ggm <- function(net, power = 0.95, n_misspec = 5, iter = 500, n = 500, prop_pos = 0.8,
+dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_pos = 0.8,
                     ordinal = FALSE, n_levels = 4, skew_factor = 1, min_extra = 0.2,
                     type = c("uniform", "random"), missing = 0, ncores = 1) {
 
