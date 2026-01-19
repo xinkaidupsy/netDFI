@@ -1,10 +1,14 @@
 
-# netDFI
-
+# Dynamic Fit Index Cutoffs for Network Models
 <!-- badges: start -->
+  [![R-CMD-check](https://github.com/xinkaidupsy/netDFI/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/xinkaidupsy/netDFI/actions/workflows/R-CMD-check.yaml)
+  [![Lifecycle: stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
+  [![CRAN status](https://www.r-pkg.org/badges/version/netDFI)](https://CRAN.R-project.org/package=netDFI)
+  [![CRAN downloads](https://cranlogs.r-pkg.org/badges/grand-total/netDFI)](https://CRAN.R-project.org/package=netDFI)
+  [![GitHub release downloads](https://img.shields.io/github/downloads/xinkaidupsy/netDFI/total)](https://github.com/xinkaidupsy/netDFI/releases)
 <!-- badges: end -->
 
-The goal of netDFI is to compute dynamic fit index cutoffs for network models. 
+The goal of $\texttt{netDFI}$ is to compute dynamic fit index cutoffs for network models. 
 
 Reference for Gaussian graphical models: https://osf.io/preprints/psyarxiv/5wj2y_v1
 
