@@ -4,7 +4,7 @@
 \name{netDFI-package}
 \alias{netDFI}
 \alias{netDFI-package}
-\title{netDFI: Dynamic fit index for network models}
+\title{netDFI: Dynamic Fit Index for Network Models}
 \description{
 Implement methods to determine the dynamic fit index cutoffs for network models. The package allows users to evaluate model fit based on their own model statement, model type, and sample size.
 }

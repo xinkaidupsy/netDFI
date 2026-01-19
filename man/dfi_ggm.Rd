@@ -55,6 +55,40 @@ An object of class dfi_ggm. Can use summary to view a summary of results
 \description{
 This function determines the dynamic fit index cutoffs for Gaussian Graphical Models (GGM)
 }
+\examples{
+\dontrun{
+library(psych)
+library(psychonetrics)
+library(dplyr)
+library(netDFI)
+
+# get the big five inventory data from psych
+data(bfi)
+
+# estimate ggm
+bfi_mod <- ggm(bfi) \%>\% prune \%>\% runmodel
+
+# obtain the partial correlation matrix
+bfi_net <- getmatrix(bfi_mod, "omega")
+
+# allow future_apply to use more memory
+options(future.globals.maxSize = 2 * 1024^3)
+
+# run dfi
+dfi_bfi <- dfi_ggm(
+  bfi_net,
+  ncores = parallel::detectCores(),
+  power = 0.80,
+  iter = 200,
+  n_misspec = 2
+)
+dfi_bfi
+
+# plot results
+p <- plot(dfi_bfi)
+p[[1]]
+}
+}
 \author{
 Xinkai Du
 Maintainer: Xinkai Du <xinkai.du.xd@gmail.com>

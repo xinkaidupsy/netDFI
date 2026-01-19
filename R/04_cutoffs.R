@@ -25,6 +25,39 @@
 #' Maintainer: Xinkai Du <xinkai.du.xd@gmail.com>
 #'
 #' @export dfi_ggm
+#' @examples
+#' \dontrun{
+#' library(psych)
+#' library(psychonetrics)
+#' library(dplyr)
+#' library(netDFI)
+#'
+#' # get the big five inventory data from psych
+#' data(bfi)
+#'
+#' # estimate ggm
+#' bfi_mod <- ggm(bfi) %>% prune %>% runmodel
+#'
+#' # obtain the partial correlation matrix
+#' bfi_net <- getmatrix(bfi_mod, "omega")
+#'
+#' # allow future_apply to use more memory
+#' options(future.globals.maxSize = 2 * 1024^3)
+#'
+#' # run dfi
+#' dfi_bfi <- dfi_ggm(
+#'   bfi_net,
+#'   ncores = parallel::detectCores(),
+#'   power = 0.80,
+#'   iter = 200,
+#'   n_misspec = 2
+#' )
+#' dfi_bfi
+#'
+#' # plot results
+#' p <- plot(dfi_bfi)
+#' p[[1]]
+#' }
 
 dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_pos = 0.8,
                     ordinal = FALSE, n_levels = 4, skew_factor = 1, min_extra = 0.2,

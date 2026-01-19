@@ -1,7 +1,7 @@
 Package: netDFI
 Type: Package
-Title: Dynamic fit index for network models
-Version: 1.0.0
+Title: Dynamic Fit Index for Network Models
+Version: 1.1.0
 Authors@R: c(
     person(
       "Xinkai", "Du", ,
@@ -28,3 +28,5 @@ Imports:
     qgraph,
     ggplot2,
     patchwork
+Suggests:
+    psych
