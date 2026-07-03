@@ -17,7 +17,8 @@ dfi_ggm(
   min_extra = 0.2,
   type = c("uniform", "random"),
   missing = 0,
-  ncores = 1
+  ncores = 1,
+  progressbar = TRUE
 )
 }
 \arguments{
@@ -48,6 +49,9 @@ Avoid setting too large numbers. Otherwise the simulation might fail or take too
 \item{missing}{Proportion of data that should be simulated to be missing.}
 
 \item{ncores}{How many cores you want to use in the simulation. Recommend to leave one core free so that other tasks in the system are not impacted.}
+
+\item{progressbar}{Logical; if TRUE (default), show progress bars while fitting the
+misspecified and true models. Set to FALSE to suppress.}
 }
 \value{
 An object of class dfi_ggm. Can use summary to view a summary of results
@@ -77,7 +81,7 @@ options(future.globals.maxSize = 2 * 1024^3)
 # run dfi
 dfi_bfi <- dfi_ggm(
   bfi_net,
-  ncores = parallel::detectCores(),
+  ncores = 1,
   power = 0.80,
   iter = 200,
   n_misspec = 2

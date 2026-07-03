@@ -100,7 +100,7 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos, min_extra) {
       mod_misspec <- net
 
       # Generate edge weights with random signs
-      edges_to_add[[k]]$added_edges <- min_extra * sample(c(1, -1),
+      edges_to_add[[k]]$modified_edges <- min_extra * sample(c(1, -1),
                                                           nrow(edges_to_add[[k]]),
                                                           prob = c(prop_pos, 1-prop_pos),
                                                           replace = TRUE)
@@ -112,7 +112,7 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos, min_extra) {
         to_node <- edges_to_add[[k]]$to[i]
 
         # Add the edge in both directions (symmetric matrix)
-        mod_misspec[from_node, to_node] <- mod_misspec[to_node, from_node] <- edges_to_add[[k]]$added_edges[i]
+        mod_misspec[from_node, to_node] <- mod_misspec[to_node, from_node] <- edges_to_add[[k]]$modified_edges[i]
 
       }
 
@@ -136,7 +136,7 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos, min_extra) {
     if (all_positive_definite) {
       return(list(
         net_ls = net_ls,
-        added_edges = lapply(edges_to_add, function(x) x %>% select(loc, added_edges))
+        modified_edges = lapply(edges_to_add, function(x) x %>% select(loc, modified_edges))
       ))
     }
   }

@@ -20,14 +20,14 @@ plot.dfi_ggm <- function(x, ...) {
   # obtain L0 & Ls data
   L0 <- x$fit %>%
     select(matches("L0")) %>%
-    `colnames<-`(c("TLI", "RMSEA", "CFI")) %>%
+    `colnames<-`(c("TLI", "RMSEA", "CFI", "SRMR")) %>%
     `rownames<-`(NULL) %>%
     mutate(Model = "true")
 
   Ls <- lapply(seq_len(nrow(x$cutoff_misspec)), function(i){
     x$fit %>%
       select(matches(paste0("L",i))) %>%
-      `colnames<-`(c("TLI", "RMSEA", "CFI")) %>%
+      `colnames<-`(c("TLI", "RMSEA", "CFI", "SRMR")) %>%
       `rownames<-`(NULL) %>%
       mutate(Model = "misspecified")
   })
@@ -40,7 +40,7 @@ plot.dfi_ggm <- function(x, ...) {
   # plot
   p_patched <- lapply(seq_along(plot_dt), function(i) {
 
-    p <- lapply(c("TLI", "RMSEA", "CFI"), function(index) {
+    p <- lapply(c("TLI", "RMSEA", "CFI", "SRMR"), function(index) {
       ggplot2::ggplot(plot_dt[[i]], aes(x = get(index), fill = Model)) +
         geom_histogram(position = "identity", bins=30, alpha = 0.5) +
         scale_fill_brewer(palette = "Set1") +
@@ -54,7 +54,7 @@ plot.dfi_ggm <- function(x, ...) {
         theme_classic() +
         theme(axis.text.y = element_blank(),
               axis.ticks.y = element_blank())
-    }) %>% setNames(c("TLI", "RMSEA", "CFI"))
+    }) %>% setNames(c("TLI", "RMSEA", "CFI", "SRMR"))
 
     patchwork::wrap_plots(p) +
       plot_layout(guides = "collect") +

@@ -5,20 +5,18 @@
 # --- misspecified model ---
 ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_levels, skew_factor, type, missing, par_fun, n_misspec, min_extra) {
 
-  # create full list of candidate locations for the extra edge
-  edge_cand_full <- edge_df(net = net)
-
-  # select based on priority & non-replication (don't select edges that are connected to the same node)
-  edge_cand_ls <- select_edges(edge_cand_full,
-                               max_round = 10,
-                               n_misspec = n_misspec)
-
-  # add
-  mod_misspec <- ggm_add(net = net, edge_cand_ls = edge_cand_ls,
-                         n_misspec = n_misspec, prop_pos = prop_pos, min_extra = min_extra)
+    edge_cand_full <- edge_df(net = net)
+    edge_cand_ls <- select_edges(edge_cand_full,
+                                 max_round = 10,
+                                 n_misspec = n_misspec)
+    mod_misspec <- ggm_add(net = net, edge_cand_ls = edge_cand_ls,
+                           n_misspec = n_misspec, prop_pos = prop_pos, min_extra = min_extra)
 
   # misspec model list
   m_net_ls <- mod_misspec$net_ls
+
+  # progress bar across iter * n_misspec fits
+  p <- progressr::progressor(steps = iter * length(m_net_ls), message = "Obtaining misspecified model fit distribution")
 
   misspec_fit <-
     # generate data for the misspecified model
@@ -30,6 +28,7 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_leve
     # get cna model & fit based on the data
     par_fun(function(mod) {
       par_fun(mod, function(dt) {
+        on.exit(p())
         fit_result <- psychonetrics::ggm(dt, omega = adj_net) %>%
           psychonetrics::runmodel(addMIs = FALSE,
                                   addSEs = FALSE,
@@ -38,16 +37,17 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_leve
         # in case model estimation fails, set fit to NA so that other fit are returned
         tryCatch({
           fit_result %>%
-            filter(Measure %in% c("cfi", "rmsea", "tli")) %>%
+            filter(Measure %in% c("cfi", "rmsea", "tli", "srmr")) %>%
             mutate(Measure = NULL, Value = round(Value, 3)) %>%
             t %>% as.data.frame %>%
-            `colnames<-`(c("TLI_M","CFI_M","RMSEA_M")) %>%
+            `colnames<-`(c("TLI_M","CFI_M","RMSEA_M","SRMR_M")) %>%
             mutate(Model = "misspec",
                    TLI_M = case_when(TLI_M >= 1.2 | TLI_M < 0 ~ NA, TRUE ~ TLI_M),
                    RMSEA_M = case_when(RMSEA_M >= 1 | RMSEA_M < 0 ~ NA, TRUE ~ RMSEA_M),
-                   CFI_M = case_when(CFI_M >= 1.2 | CFI_M < 0 ~ NA, TRUE ~ CFI_M))
+                   CFI_M = case_when(CFI_M >= 1.2 | CFI_M < 0 ~ NA, TRUE ~ CFI_M),
+                   SRMR_M = case_when(SRMR_M >= 1 | SRMR_M < 0 ~ NA, TRUE ~ SRMR_M))
         }, error = function(e) {
-          data.frame(TLI_M = NA, CFI_M = NA, RMSEA_M = NA, Model = "misspec")
+          data.frame(TLI_M = NA, CFI_M = NA, RMSEA_M = NA, SRMR_M = NA, Model = "misspec")
         })
       }) %>% suppressWarnings %>% bind_rows %>%
         `rownames<-`(paste0("iter", 1:nrow(.)))
@@ -56,7 +56,7 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_leve
   return(list(
     misspec_fit = misspec_fit,
     mod_misspec = m_net_ls,
-    added_edges = mod_misspec$added_edges
+    modified_edges = mod_misspec$modified_edges
   ))
 
 }
@@ -65,6 +65,9 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_leve
 # --- true model ---
 ggm_fit_true <- function(net, adj_net, iter, n, ordinal, n_levels, skew_factor, type, missing, par_fun) {
 
+  # progress bar across iter fits
+  p <- progressr::progressor(steps = iter, message = "Obtaining true model fit distribution")
+
   true_fit <-
     # generate data from true
     ggm_dt_sim(net = net, iter = iter, n = n, ordinal = ordinal,
@@ -72,15 +75,16 @@ ggm_fit_true <- function(net, adj_net, iter, n, ordinal, n_levels, skew_factor, 
                type = type, missing = missing, par_fun = par_fun) %>%
     # fit the model & obtain fit
     par_fun(function(dt) {
+      on.exit(p())
       psychonetrics::ggm(dt, omega = adj_net) %>%
         psychonetrics::runmodel(addMIs = FALSE,
                                 addSEs = FALSE,
                                 addInformation = FALSE) %>%
         silent_fit %>%
-        filter(Measure %in% c("cfi", "rmsea", "tli")) %>%
+        filter(Measure %in% c("cfi", "rmsea", "tli", "srmr")) %>%
         mutate(Measure = NULL, Value = round(Value, 3)) %>%
         t %>% as.data.frame %>%
-        `colnames<-`(c("TLI_T","CFI_T","RMSEA_T")) %>%
+        `colnames<-`(c("TLI_T","CFI_T","RMSEA_T","SRMR_T")) %>%
         mutate(Model = "true")
     }) %>% suppressWarnings %>%
     bind_rows %>%
