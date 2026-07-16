@@ -45,7 +45,7 @@ options(future.globals.maxSize = 2 * 1024^3)
 # run dfi
 dfi_bfi <- dfi_ggm(
   bfi_net, 
-  ncores = parallel::detectCores(), 
+  ncores = 1, 
   power = 0.80, 
   iter = 200,
   n_misspec = 2

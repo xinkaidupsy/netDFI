@@ -1,5 +1,3 @@
-
-
 #' Dynamic fit index cutoffs for Gaussian Graphical Model
 #'
 #' This function determines the dynamic fit index cutoffs for Gaussian Graphical Models (GGM)
@@ -25,6 +23,8 @@
 #' @param n_misspec Number of mis-specified model you want in the simulation. Default to 3, meaning
 #' there are five mis-specified models with 1, 2, ..., 5 extra edges respectively.
 #' Avoid setting too large numbers. Otherwise the simulation might fail or take too long.
+#' @param progressbar Logical; if TRUE (default), show progress bars while fitting the
+#' misspecified and true models. Set to FALSE to suppress.
 #'
 #' @return An object of class dfi_ggm. Can use summary to view a summary of results
 #' @author Xinkai Du
@@ -42,7 +42,9 @@
 #' data(bfi)
 #'
 #' # estimate ggm
-#' bfi_mod <- ggm(bfi) %>% prune %>% runmodel
+#' bfi_mod <- ggm(bfi) %>%
+#'   prune() %>%
+#'   runmodel()
 #'
 #' # obtain the partial correlation matrix
 #' bfi_net <- getmatrix(bfi_mod, "omega")
@@ -53,7 +55,7 @@
 #' # run dfi
 #' dfi_bfi <- dfi_ggm(
 #'   bfi_net,
-#'   ncores = parallel::detectCores(),
+#'   ncores = 1,
 #'   power = 0.80,
 #'   iter = 200,
 #'   n_misspec = 2
@@ -64,26 +66,32 @@
 #' p <- plot(dfi_bfi)
 #' p[[1]]
 #' }
-
 dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_pos = 0.8,
                     ordinal = FALSE, n_levels = 4, skew_factor = 1,
                     size_extra = c("beta_min", "manual"), manual_size = 0.2,
-                    type = c("uniform", "random"), missing = 0, ncores = 1) {
-
+                    type = c("uniform", "random"), missing = 0, ncores = 1, progressbar = TRUE) {
   type <- match.arg(type, c("uniform", "random"))
 
   size_extra <- match.arg(size_extra, c("beta_min", "manual"))
   if (size_extra == "manual") {
     if (!is.numeric(manual_size) || length(manual_size) != 1 ||
-        manual_size <= 0 || manual_size >= 1) {
+      manual_size <= 0 || manual_size >= 1) {
       stop("`manual_size` must be a single number in (0, 1) when `size_extra = 'manual'`.")
     }
   }
 
   # Set up parallel execution plan
   if (ncores > 1) {
+    message(
+      "Using ", ncores, " cores. Each worker is a full R session that loads this ",
+      "package's dependencies and receives its own copy of the exported data, so a ",
+      "high ncores on memory-limited machines can cause severe slowdown (RAM paging) ",
+      "rather than a speedup. If fitting stalls with high CPU but low RAM headroom, ",
+      "try a lower ncores (e.g. parallel::detectCores() - 1) and increase only if ",
+      "RAM allows."
+    )
     future::plan(future::multisession, workers = ncores)
-    par_fun <- future.apply::future_lapply %>% suppressWarnings
+    par_fun <- future.apply::future_lapply %>% suppressWarnings()
     on.exit(future::plan(future::sequential), add = TRUE)
   } else {
     par_fun <- lapply
@@ -99,25 +107,42 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_
   # list to store results
   res <- list()
 
-  # fit of misspec model
-  misspec <- ggm_fit_misspec(net = net, iter = iter, n = n,
-                             adj_net = adj_net, prop_pos = prop_pos,
-                             ordinal = ordinal, n_levels = n_levels,
-                             skew_factor = skew_factor, type = type,
-                             missing = missing, par_fun = par_fun,
-                             n_misspec = n_misspec, size_extra = size_extra,
-                             manual_size = manual_size)
+  # wrap fitting in with_progress() so progressor signals from the
+  # inner functions are caught and displayed
+  fit_runner <- function() {
+    message("Obtaining misspecified model fit distribution...")
+    misspec <- ggm_fit_misspec(
+      net = net, iter = iter, n = n,
+      adj_net = adj_net, prop_pos = prop_pos,
+      ordinal = ordinal, n_levels = n_levels,
+      skew_factor = skew_factor, type = type,
+      missing = missing, par_fun = par_fun,
+      n_misspec = n_misspec, size_extra = size_extra,
+      manual_size = manual_size
+    )
 
+    message("Obtaining true model fit distribution...")
+    true_fit <- ggm_fit_true(
+      net = net, iter = iter, n = n, adj_net = adj_net,
+      ordinal = ordinal, n_levels = n_levels, skew_factor = skew_factor,
+      type = type, missing = missing, par_fun = par_fun
+    )
+
+    list(misspec = misspec, true_fit = true_fit)
+  }
+
+  fits <- if (progressbar) {
+    progressr::with_progress(fit_runner())
+  } else {
+    fit_runner()
+  }
+
+  misspec <- fits$misspec
+  true_fit <- fits$true_fit
   misspec_fit <- misspec$misspec_fit
 
   # add the added edges to the return list
-  res$added_edges <- misspec$added_edges %>% setNames(paste0("L", 1:n_misspec))
-
-  # true fit
-  true_fit <- ggm_fit_true(net = net, iter = iter, n = n, adj_net = adj_net,
-                           ordinal = ordinal, n_levels = n_levels, skew_factor = skew_factor,
-                           type = type, missing = missing, par_fun = par_fun)
-
+  res$modified_edges <- misspec$modified_edges %>% setNames(paste0("L", 1:n_misspec))
   # store true and misspec fit
   res$fit <- fit_data(true_fit = true_fit, misspec_fit, par_fun = par_fun)
 
@@ -130,16 +155,22 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_
   # 95% percentile of TLI & CFI; 5% of RMSEA
   # ideally these values also performs worse than 95% of the values in the true distribution (if power = 0.95)
   misspec_sum <- par_fun(misspec_fit, function(df) {
-    reframe(df,TLI_M=stats::quantile(TLI_M, c(seq(0.95,0,-0.01)), na.rm = TRUE),
-            RMSEA_M=stats::quantile(RMSEA_M, c(seq(0.05,1,0.01)), na.rm = TRUE),
-            CFI_M=stats::quantile(CFI_M, c(seq(0.95,0,-0.01)), na.rm = TRUE))
+    reframe(df,
+      TLI_M = stats::quantile(TLI_M, c(seq(0.95, 0, -0.01)), na.rm = TRUE),
+      RMSEA_M = stats::quantile(RMSEA_M, c(seq(0.05, 1, 0.01)), na.rm = TRUE),
+      CFI_M = stats::quantile(CFI_M, c(seq(0.95, 0, -0.01)), na.rm = TRUE),
+      SRMR_M = stats::quantile(SRMR_M, c(seq(0.05, 1, 0.01)), na.rm = TRUE)
+    )
   })
 
   # find in the true distribution the value that marks power = power
   true_cut <- true_fit %>%
-    reframe(TLI_T=stats::quantile(TLI_T, c(1-power)),
-            RMSEA_T=stats::quantile(RMSEA_T, c(power)),
-            CFI_T=stats::quantile(CFI_T, c(1-power)))
+    reframe(
+      TLI_T = stats::quantile(TLI_T, c(1 - power)),
+      RMSEA_T = stats::quantile(RMSEA_T, c(power)),
+      CFI_T = stats::quantile(CFI_T, c(1 - power)),
+      SRMR_T = stats::quantile(SRMR_T, c(power))
+    )
 
   # calculate sensitivity based on misspec dist & power
   final <- par_fun(1:length(misspec_fit), function(i) {
@@ -150,126 +181,185 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_
     fit_i$TLI_sens <- ifelse(fit_i$TLI_M <= fit_i$TLI_T, 1, 0)
     fit_i$RMSEA_sens <- ifelse(fit_i$RMSEA_M >= fit_i$RMSEA_T, 1, 0)
     fit_i$CFI_sens <- ifelse(fit_i$CFI_M <= fit_i$CFI_T, 1, 0)
+    fit_i$SRMR_sens <- ifelse(fit_i$SRMR_M >= fit_i$SRMR_T, 1, 0)
 
     # HB cutoffs
     fit_i$TLI_HB <- 0.95
     fit_i$RMSEA_HB <- 0.05
     fit_i$CFI_HB <- 0.95
+    fit_i$SRMR_HB <- 0.08
 
     # HB sensitivity
     fit_i$TLI_HB_sens <- ifelse(fit_i$TLI_M <= 0.95, 1, 0)
     fit_i$RMSEA_HB_sens <- ifelse(fit_i$RMSEA_M >= 0.05, 1, 0)
     fit_i$CFI_HB_sens <- ifelse(fit_i$CFI_M <= 0.95, 1, 0)
+    fit_i$SRMR_HB_sens <- ifelse(fit_i$SRMR_M >= 0.08, 1, 0)
 
     # Calculate the sensitivity of DFI
-    tli <- fit_i %>% filter(!duplicated(TLI_sens) | Power == 0) %>%
+    tli <- fit_i %>%
+      filter(!duplicated(TLI_sens) | Power == 0) %>%
       select(TLI_M, Power, TLI_sens) %>%
       filter(TLI_sens == 1 | Power == 0) %>%
       select(TLI_M, Power) %>%
-    `colnames<-`(c("TLI", "sensitivity_tli"))
+      `colnames<-`(c("TLI", "sensitivity_tli"))
 
-    rmsea <- fit_i %>% filter(!duplicated(RMSEA_sens) | Power == 0) %>%
+    rmsea <- fit_i %>%
+      filter(!duplicated(RMSEA_sens) | Power == 0) %>%
       select(RMSEA_M, Power, RMSEA_sens) %>%
       filter(RMSEA_sens == 1 | Power == 0) %>%
       select(RMSEA_M, Power) %>%
       `colnames<-`(c("RMSEA", "sensitivity_rmsea"))
 
-    cfi <- fit_i %>% filter(!duplicated(CFI_sens) | Power == 0) %>%
+    cfi <- fit_i %>%
+      filter(!duplicated(CFI_sens) | Power == 0) %>%
       select(CFI_M, Power, CFI_sens) %>%
       filter(CFI_sens == 1 | Power == 0) %>%
       select(CFI_M, Power) %>%
       `colnames<-`(c("CFI", "sensitivity_cfi"))
 
+    srmr <- fit_i %>%
+      filter(!duplicated(SRMR_sens) | Power == 0) %>%
+      select(SRMR_M, Power, SRMR_sens) %>%
+      filter(SRMR_sens == 1 | Power == 0) %>%
+      select(SRMR_M, Power) %>%
+      `colnames<-`(c("SRMR", "sensitivity_srmr"))
+
     # calculate the sensitivity of HB cutoffs
-    tli_HB <- fit_i %>% filter(!duplicated(TLI_HB_sens) | Power == 0) %>%
+    tli_HB <- fit_i %>%
+      filter(!duplicated(TLI_HB_sens) | Power == 0) %>%
       select(TLI_HB, Power, TLI_HB_sens) %>%
       filter(TLI_HB_sens == 1 | Power == 0) %>%
       select(TLI_HB, Power) %>%
       `colnames<-`(c("TLI_HB", "sensitivity_tli_HB"))
 
-    rmsea_HB <- fit_i %>% filter(!duplicated(RMSEA_HB_sens) | Power == 0) %>%
+    rmsea_HB <- fit_i %>%
+      filter(!duplicated(RMSEA_HB_sens) | Power == 0) %>%
       select(RMSEA_HB, Power, RMSEA_HB_sens) %>%
       filter(RMSEA_HB_sens == 1 | Power == 0) %>%
       select(RMSEA_HB, Power) %>%
       `colnames<-`(c("RMSEA_HB", "sensitivity_rmsea_HB"))
 
-    cfi_HB <- fit_i %>% filter(!duplicated(CFI_HB_sens) | Power == 0) %>%
+    cfi_HB <- fit_i %>%
+      filter(!duplicated(CFI_HB_sens) | Power == 0) %>%
       select(CFI_HB, Power, CFI_HB_sens) %>%
       filter(CFI_HB_sens == 1 | Power == 0) %>%
       select(CFI_HB, Power) %>%
       `colnames<-`(c("CFI_HB", "sensitivity_cfi_HB"))
 
+    srmr_HB <- fit_i %>%
+      filter(!duplicated(SRMR_HB_sens) | Power == 0) %>%
+      select(SRMR_HB, Power, SRMR_HB_sens) %>%
+      filter(SRMR_HB_sens == 1 | Power == 0) %>%
+      select(SRMR_HB, Power) %>%
+      `colnames<-`(c("SRMR_HB", "sensitivity_srmr_HB"))
+
     # Create and return only the final result
     cbind(
-      tli[1,], rmsea[1,], cfi[1,],
-      tli_HB[1,], rmsea_HB[1,], cfi_HB[1,]
-      )[c("TLI", "sensitivity_tli",
-          "RMSEA", "sensitivity_rmsea",
-          "CFI", "sensitivity_cfi",
-          "TLI_HB", "sensitivity_tli_HB",
-          "RMSEA_HB", "sensitivity_rmsea_HB",
-          "CFI_HB", "sensitivity_cfi_HB")]
+      tli[1, ], rmsea[1, ], cfi[1, ], srmr[1, ],
+      tli_HB[1, ], rmsea_HB[1, ], cfi_HB[1, ], srmr_HB[1, ]
+    )[c(
+      "TLI", "sensitivity_tli",
+      "RMSEA", "sensitivity_rmsea",
+      "CFI", "sensitivity_cfi",
+      "SRMR", "sensitivity_srmr",
+      "TLI_HB", "sensitivity_tli_HB",
+      "RMSEA_HB", "sensitivity_rmsea_HB",
+      "CFI_HB", "sensitivity_cfi_HB",
+      "SRMR_HB", "sensitivity_srmr_HB"
+    )]
   })
 
   # find the power percentile for true
   true_sum <- true_fit %>%
-    reframe(TLI_T=stats::quantile(TLI_T, c(seq(0.05,1,0.01))),
-            RMSEA_T=stats::quantile(RMSEA_T, c(seq(0.95,0,-0.01))),
-            CFI_T=stats::quantile(CFI_T, c(seq(0.05,1,0.01)))) %>%
+    reframe(
+      TLI_T = stats::quantile(TLI_T, c(seq(0.05, 1, 0.01))),
+      RMSEA_T = stats::quantile(RMSEA_T, c(seq(0.95, 0, -0.01))),
+      CFI_T = stats::quantile(CFI_T, c(seq(0.05, 1, 0.01))),
+      SRMR_T = stats::quantile(SRMR_T, c(seq(0.95, 0, -0.01)))
+    ) %>%
     mutate(Power = seq(.95, 0.0, -.01))
 
   # HB cutoffs
   true_sum$TLI_HB <- 0.95
   true_sum$RMSEA_HB <- 0.05
   true_sum$CFI_HB <- 0.95
+  true_sum$SRMR_HB <- 0.08
 
   # HB power
   true_sum$TLI_HB_spec <- ifelse(true_sum$TLI_T >= 0.95, 1, 0)
   true_sum$RMSEA_HB_spec <- ifelse(true_sum$RMSEA_T <= 0.05, 1, 0)
   true_sum$CFI_HB_spec <- ifelse(true_sum$CFI_T >= 0.95, 1, 0)
+  true_sum$SRMR_HB_spec <- ifelse(true_sum$SRMR_T <= 0.08, 1, 0)
 
   # calculate the sensitivity of HB cutoffs
-  tli_HB <- true_sum %>% filter(!duplicated(TLI_HB_spec) | Power == 0) %>%
+  tli_HB <- true_sum %>%
+    filter(!duplicated(TLI_HB_spec) | Power == 0) %>%
     select(TLI_HB, Power, TLI_HB_spec) %>%
     filter(TLI_HB_spec == 1 | Power == 0) %>%
     select(TLI_HB, Power) %>%
     `colnames<-`(c("TLI_HB", "power_tli_HB"))
 
-  rmsea_HB <- true_sum %>% filter(!duplicated(RMSEA_HB_spec) | Power == 0) %>%
+  rmsea_HB <- true_sum %>%
+    filter(!duplicated(RMSEA_HB_spec) | Power == 0) %>%
     select(RMSEA_HB, Power, RMSEA_HB_spec) %>%
     filter(RMSEA_HB_spec == 1 | Power == 0) %>%
     select(RMSEA_HB, Power) %>%
     `colnames<-`(c("RMSEA_HB", "power_rmsea_HB"))
 
-  cfi_HB <- true_sum %>% filter(!duplicated(CFI_HB_spec) | Power == 0) %>%
+  cfi_HB <- true_sum %>%
+    filter(!duplicated(CFI_HB_spec) | Power == 0) %>%
     select(CFI_HB, Power, CFI_HB_spec) %>%
     filter(CFI_HB_spec == 1 | Power == 0) %>%
     select(CFI_HB, Power) %>%
     `colnames<-`(c("CFI_HB", "power_cfi_HB"))
 
+  srmr_HB <- true_sum %>%
+    filter(!duplicated(SRMR_HB_spec) | Power == 0) %>%
+    select(SRMR_HB, Power, SRMR_HB_spec) %>%
+    filter(SRMR_HB_spec == 1 | Power == 0) %>%
+    select(SRMR_HB, Power) %>%
+    `colnames<-`(c("SRMR_HB", "power_srmr_HB"))
+
   # L0 specificity to misspecification
   L0 <- cbind(
-    true_cut$TLI_T,power,
-    true_cut$RMSEA_T,power,
-    true_cut$CFI_T,power,
-    tli_HB[1,], rmsea_HB[1,], cfi_HB[1,]
+    true_cut$TLI_T, power,
+    true_cut$RMSEA_T, power,
+    true_cut$CFI_T, power,
+    true_cut$SRMR_T, power,
+    tli_HB[1, ], rmsea_HB[1, ], cfi_HB[1, ], srmr_HB[1, ]
   ) %>%
-    `names<-`(c("TLI", "specificity_tli",
-                "RMSEA", "specificity_rmsea",
-                "CFI", "specificity_cfi",
-                "TLI_HB", "specificity_tli_HB",
-                "RMSEA_HB", "specificity_rmsea_HB",
-                "CFI_HB", "specificity_cfi_HB")) %>%
-    round(3) %>% mutate(mis_level = "L0")
+    `names<-`(c(
+      "TLI", "specificity_tli",
+      "RMSEA", "specificity_rmsea",
+      "CFI", "specificity_cfi",
+      "SRMR", "specificity_srmr",
+      "TLI_HB", "specificity_tli_HB",
+      "RMSEA_HB", "specificity_rmsea_HB",
+      "CFI_HB", "specificity_cfi_HB",
+      "SRMR_HB", "specificity_srmr_HB"
+    )) %>%
+    round(3) %>%
+    mutate(mis_level = "L0")
 
   # fit value cutoffs & their sensitivity to the misspec models
-  Ls <- bind_rows(final) %>% round(3) %>% mutate(mis_level = paste0("L",1:nrow(.)))
+  Ls <- bind_rows(final) %>%
+    round(3) %>%
+    mutate(mis_level = paste0("L", 1:nrow(.)))
 
   # ditch the cutoff if its sensitivity < 0.5
   for (j in 1:length(misspec_sum)) {
-    if(Ls[j,2]<.50){Ls[j,1]<-NA}
-    if(Ls[j,4]<.50){Ls[j,3]<-NA}
-    if(Ls[j,6]<.50){Ls[j,5]<-NA}
+    if (Ls[j, 2] < .50) {
+      Ls[j, 1] <- NA
+    }
+    if (Ls[j, 4] < .50) {
+      Ls[j, 3] <- NA
+    }
+    if (Ls[j, 6] < .50) {
+      Ls[j, 5] <- NA
+    }
+    if (Ls[j, 8] < .50) {
+      Ls[j, 7] <- NA
+    }
   }
 
   res$cutoff_true <- L0 # this is the cutoff that marks power = power
@@ -280,7 +370,4 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_
   class(res) <- "dfi_ggm"
 
   invisible(res)
-
 }
-
-

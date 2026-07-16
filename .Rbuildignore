@@ -5,3 +5,5 @@
 ^cran-comments\.md$
 ^CRAN-SUBMISSION$
 ^\.github$
+^\.positai$
+^\.claude$

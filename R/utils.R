@@ -35,10 +35,10 @@ fit_data <- function(true_fit, misspec_fit, par_fun){
   })
 
   #Create beginning of variable name for each
-  dat_name <- rep(c("TLI_L","CFI_L","RMSEA_L","Type_L"),2)
+  dat_name <- rep(c("TLI_L","CFI_L","RMSEA_L","SRMR_L","Type_L"),2)
 
   #Create vector of 0's for the True model
-  dat_0 <- rep(0,4)
+  dat_0 <- rep(0,5)
 
   #Get number of levels of misspecification
   dat_lev <- length(df_results)
@@ -46,7 +46,7 @@ fit_data <- function(true_fit, misspec_fit, par_fun){
   #Create combo of Level #'s and 0's to merge with variable names (in list form)
   dat_num <- list()
   for (i in 1:dat_lev){
-    output <- c(rep(i,4),dat_0)
+    output <- c(rep(i,5),dat_0)
     dat_num[[i]] <- output
   }
 

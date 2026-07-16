@@ -16,7 +16,6 @@ Description: Implement methods to determine the dynamic fit index cutoffs for
 License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.3.2
 URL: https://github.com/xinkaidupsy/netDFI
 BugReports: https://github.com/xinkaidupsy/netDFI/issues
 Imports:
@@ -24,9 +23,11 @@ Imports:
     dplyr,
     future,
     future.apply,
+    progressr,
     psychonetrics,
     qgraph,
     ggplot2,
     patchwork
 Suggests:
     psych
+Config/roxygen2/version: 8.0.0
