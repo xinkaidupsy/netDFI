@@ -11,7 +11,8 @@ silent_fit <- function(model) {
 }
 
 # ----- net2vec -----
-# obtain the lower.tri of a network, label each edge with the nodes that it connects, &
+# obtain the lower.tri of a network,
+# label each edge with the nodes that it connects, &
 # output the vector of edges annotated with corresponding nodes
 net2vec <- function(net){
 
@@ -73,8 +74,10 @@ fit_data <- function(true_fit, misspec_fit, par_fun){
 
   #Reorder variables
   df_renamed4 <- df_renamed3 %>%
-    dplyr::relocate(order(colnames(df_renamed3))) %>%            #gets numbers in order
-    dplyr::relocate(dplyr::starts_with("TLI"),dplyr::starts_with("RMSEA"))    #gets fit indices in order
+    # gets numbers in order
+    dplyr::relocate(order(colnames(df_renamed3))) %>%
+    #gets fit indices in order
+    dplyr::relocate(dplyr::starts_with("TLI"),dplyr::starts_with("RMSEA"))
 
   return(df_renamed4)
 }

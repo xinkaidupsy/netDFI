@@ -127,7 +127,9 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos, n, size_extra, manua
         to_node <- edges_to_add[[k]]$to[i]
 
         # Add the edge in both directions (symmetric matrix)
-        mod_misspec[from_node, to_node] <- mod_misspec[to_node, from_node] <- edges_to_add[[k]]$modified_edges[i]
+        mod_misspec[from_node, to_node] <-
+          mod_misspec[to_node, from_node] <-
+          edges_to_add[[k]]$modified_edges[i]
       }
 
       # Check the positive definiteness of I - omega

@@ -78,7 +78,9 @@ library(netDFI)
 data(bfi)
 
 # estimate ggm
-bfi_mod <- ggm(bfi) \%>\% prune \%>\% runmodel
+bfi_mod <- ggm(bfi) \%>\%
+  prune() \%>\%
+  runmodel()
 
 # obtain the partial correlation matrix
 bfi_net <- getmatrix(bfi_mod, "omega")

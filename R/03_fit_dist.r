@@ -2,7 +2,10 @@
 
 # ----- ggm -----
 # --- misspecified model ---
-ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_levels, skew_factor, type, missing, par_fun, n_misspec, size_extra, manual_size) {
+ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos,
+                            ordinal, n_levels, skew_factor, type,
+                            missing, par_fun, n_misspec, size_extra,
+                            manual_size) {
   # create full list of candidate locations for the extra edge
   edge_cand_full <- edge_df(net = net)
 
@@ -67,7 +70,13 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_leve
               )
           },
           error = function(e) {
-            data.frame(TLI_M = NA, CFI_M = NA, RMSEA_M = NA, SRMR_M = NA, Model = "misspec")
+            data.frame(
+              TLI_M = NA,
+              CFI_M = NA,
+              RMSEA_M = NA,
+              SRMR_M = NA,
+              Model = "misspec"
+            )
           }
         )
       }) %>%
@@ -85,9 +94,13 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_leve
 
 
 # --- true model ---
-ggm_fit_true <- function(net, adj_net, iter, n, ordinal, n_levels, skew_factor, type, missing, par_fun) {
+ggm_fit_true <- function(net, adj_net, iter,
+                         n, ordinal, n_levels,
+                         skew_factor, type, missing,
+                         par_fun) {
   # progress bar across iter fits
-  p <- progressr::progressor(steps = iter, message = "Obtaining true model fit distribution")
+  p <- progressr::progressor(steps = iter,
+                             message = "Obtaining true model fit distribution")
 
   true_fit <-
     # generate data from true
