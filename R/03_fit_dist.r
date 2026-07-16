@@ -3,7 +3,7 @@
 
 # ----- ggm -----
 # --- misspecified model ---
-ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_levels, skew_factor, type, missing, par_fun, n_misspec, min_extra) {
+ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_levels, skew_factor, type, missing, par_fun, n_misspec, size_extra, manual_size) {
 
   # create full list of candidate locations for the extra edge
   edge_cand_full <- edge_df(net = net)
@@ -15,7 +15,8 @@ ggm_fit_misspec <- function(net, adj_net, iter, n = n, prop_pos, ordinal, n_leve
 
   # add
   mod_misspec <- ggm_add(net = net, edge_cand_ls = edge_cand_ls,
-                         n_misspec = n_misspec, prop_pos = prop_pos, min_extra = min_extra)
+                         n_misspec = n_misspec, prop_pos = prop_pos, n = n,
+                         size_extra = size_extra, manual_size = manual_size)
 
   # misspec model list
   m_net_ls <- mod_misspec$net_ls

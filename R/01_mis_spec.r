@@ -70,14 +70,21 @@ select_edges <- function(edge_df, max_round, n_misspec) {
 # ----- create misspecification -----
 # add the additional parameter to selected edge locations &
 # return if positive definite
-ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos, min_extra) {
+ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos, n, size_extra, manual_size) {
 
-  # Extract non-zero elements from the original network
-  edge_vec <- net[net != 0]
+  # number of nodes
+  p <- nrow(net)
 
-  # Get minimum absolute value of edge weights to use for new edges
-  # set to be no smaller than min_extra
-  # min_abs_edge <- max(min(abs(edge_vec)), min_extra)
+  # for the beta_min criterion, compute the node-specific minimum detectable
+  # partial correlation (Buhlmann & Van De Geer, 2011): sqrt(log(p) / n) / Theta_ii,
+  # where Theta_ii is the diagonal of the precision matrix. The package only receives
+  # the network (omega), so we reconstruct the model-implied correlation matrix
+  # (K proportional to I - omega) and take diag(solve(R)) as Theta_ii.
+  if (size_extra == "beta_min") {
+    R_implied <- stats::cov2cor(solve(diag(p) - net))
+    conditional_precision <- diag(solve(R_implied))          # Theta_ii, node-specific
+    beta_min_vec <- sqrt(log(p) / n) / conditional_precision # length p, indexed V1..Vp
+  }
 
   # Create a list to store resulting networks
   result_networks <- list()
@@ -99,11 +106,19 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos, min_extra) {
       # Create a copy of the original network to modify
       mod_misspec <- net
 
-      # Generate edge weights with random signs
-      edges_to_add[[k]]$added_edges <- min_extra * sample(c(1, -1),
-                                                          nrow(edges_to_add[[k]]),
-                                                          prob = c(prop_pos, 1-prop_pos),
-                                                          replace = TRUE)
+      # Determine the magnitude of each added edge, then apply a random sign.
+      # "manual": a fixed magnitude for every edge.
+      # "beta_min": node-specific magnitude sized by the edge's "from" node.
+      edge_mag <- if (size_extra == "manual") {
+        rep(manual_size, nrow(edges_to_add[[k]]))
+      } else {
+        beta_min_vec[edges_to_add[[k]]$from]
+      }
+      edge_sign <- sample(c(1, -1),
+                          nrow(edges_to_add[[k]]),
+                          prob = c(prop_pos, 1 - prop_pos),
+                          replace = TRUE)
+      edges_to_add[[k]]$added_edges <- edge_mag * edge_sign
 
       # Add each edge with the determined weight
       for (i in 1:nrow(edges_to_add[[k]])) {

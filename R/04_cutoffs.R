@@ -12,7 +12,13 @@
 #' @param ordinal Logical; should ordinal data be generated?
 #' @param n_levels Number of levels used in ordinal data.
 #' @param skew_factor How skewed should ordinal data be? 1 indicates uniform data and higher values increase skewedness.
-#' @param min_extra Minimum absolute edge weight used when adding extra edges to create misspecified models.
+#' @param size_extra How to size the extra edges added to create misspecified models.
+#'   One of "beta_min" (default) or "manual". "beta_min" uses the minimum detectable
+#'   partial correlation from LASSO theory (Buhlmann & Van De Geer, 2011),
+#'   sqrt(log(p) / n) / Theta_ii, evaluated at the node the edge is added from.
+#'   "manual" uses a fixed magnitude given by \code{manual_size}.
+#' @param manual_size Numeric in (0, 1); the absolute edge weight used when
+#'   \code{size_extra = "manual"}. Ignored when \code{size_extra = "beta_min"}.
 #' @param type Should thresholds for ordinal data be sampled at random or determined uniformly?
 #' @param missing Proportion of data that should be simulated to be missing.
 #' @param ncores How many cores you want to use in the simulation. Recommend to leave one core free so that other tasks in the system are not impacted.
@@ -60,10 +66,19 @@
 #' }
 
 dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_pos = 0.8,
-                    ordinal = FALSE, n_levels = 4, skew_factor = 1, min_extra = 0.2,
+                    ordinal = FALSE, n_levels = 4, skew_factor = 1,
+                    size_extra = c("beta_min", "manual"), manual_size = 0.2,
                     type = c("uniform", "random"), missing = 0, ncores = 1) {
 
   type <- match.arg(type, c("uniform", "random"))
+
+  size_extra <- match.arg(size_extra, c("beta_min", "manual"))
+  if (size_extra == "manual") {
+    if (!is.numeric(manual_size) || length(manual_size) != 1 ||
+        manual_size <= 0 || manual_size >= 1) {
+      stop("`manual_size` must be a single number in (0, 1) when `size_extra = 'manual'`.")
+    }
+  }
 
   # Set up parallel execution plan
   if (ncores > 1) {
@@ -90,7 +105,8 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_
                              ordinal = ordinal, n_levels = n_levels,
                              skew_factor = skew_factor, type = type,
                              missing = missing, par_fun = par_fun,
-                             n_misspec = n_misspec, min_extra = min_extra)
+                             n_misspec = n_misspec, size_extra = size_extra,
+                             manual_size = manual_size)
 
   misspec_fit <- misspec$misspec_fit
 
