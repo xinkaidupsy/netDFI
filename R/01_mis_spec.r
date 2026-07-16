@@ -76,14 +76,11 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos, n, size_extra, manua
   p <- nrow(net)
 
   # for the beta_min criterion, compute the node-specific minimum detectable
-  # partial correlation (Buhlmann & Van De Geer, 2011): sqrt(log(p) / n) / Theta_ii,
-  # where Theta_ii is the diagonal of the precision matrix. The package only receives
-  # the network (omega), so we reconstruct the model-implied correlation matrix
-  # (K proportional to I - omega) and take diag(solve(R)) as Theta_ii.
+  # partial correlation (Buhlmann & Van De Geer, 2011): sqrt(log(p) / n) / Theta_ii
   if (size_extra == "beta_min") {
     R_implied <- stats::cov2cor(solve(diag(p) - net))
-    conditional_precision <- diag(solve(R_implied)) # Theta_ii, node-specific
-    beta_min_vec <- sqrt(log(p) / n) / conditional_precision # length p, indexed V1..Vp
+    conditional_precision <- diag(solve(R_implied))
+    beta_min_vec <- sqrt(log(p) / n) / conditional_precision
   }
 
   # Create a list to store resulting networks
@@ -97,46 +94,46 @@ ggm_add <- function(net, edge_cand_ls, n_misspec, prop_pos, n, size_extra, manua
     # a list to store added edges and their locations
     edges_to_add <- list()
 
+    # The largest candidate set for this starting point already contains every
+    # smaller level as a leading row-prefix (see select_edges()).
+    full_edges <- edge_cand_ls[[start_idx]][[n_misspec]]
+
+    # Determine the magnitude of each added edge, then apply a single random sign.
+    # "manual": a fixed magnitude for every edge.
+    # "beta_min": node-specific magnitude sized by the edge's "from" node.
+    edge_mag <- if (size_extra == "manual") {
+      rep(manual_size, nrow(full_edges))
+    } else {
+      beta_min_vec[full_edges$from]
+    }
+    edge_sign <- sample(c(1, -1),
+      nrow(full_edges),
+      prob = c(prop_pos, 1 - prop_pos),
+      replace = TRUE
+    )
+    full_edges$modified_edges <- edge_mag * edge_sign
+
+    # Flag to check if all networks for this starting point are positive definite
+    all_positive_definite <- TRUE
+
+    # Build the networks cumulatively: start from the true network and add the
+    # k-th edge on top of the running matrix, leaving the previous edges untouched.
+    mod_misspec <- net
+
     # For each model size (1 to n_misspec)
     for (k in 1:n_misspec) {
-      # Get the edges for this model
-      edges_to_add[[k]] <- edge_cand_ls[[start_idx]][[k]]
+      # the edges belonging to this level (a leading prefix of full_edges)
+      edges_to_add[[k]] <- full_edges[seq_len(k), ]
 
-      # Create a copy of the original network to modify
-      mod_misspec <- net
-
-      # Determine the magnitude of each added edge, then apply a random sign.
-      # "manual": a fixed magnitude for every edge.
-      # "beta_min": node-specific magnitude sized by the edge's "from" node.
-      edge_mag <- if (size_extra == "manual") {
-        rep(manual_size, nrow(edges_to_add[[k]]))
-      } else {
-        beta_min_vec[edges_to_add[[k]]$from]
-      }
-      edge_sign <- sample(c(1, -1),
-        nrow(edges_to_add[[k]]),
-        prob = c(prop_pos, 1 - prop_pos),
-        replace = TRUE
-      )
-      edges_to_add[[k]]$modified_edges <- edge_mag * edge_sign
-
-
-      # Add each edge with the determined weight
-      for (i in 1:nrow(edges_to_add[[k]])) {
-        from_node <- edges_to_add[[k]]$from[i]
-        to_node <- edges_to_add[[k]]$to[i]
-
-        # Add the edge in both directions (symmetric matrix)
-        mod_misspec[from_node, to_node] <-
-          mod_misspec[to_node, from_node] <-
-          edges_to_add[[k]]$modified_edges[i]
-      }
+      # Add the newly introduced k-th edge in both directions (symmetric matrix)
+      from_node <- full_edges$from[k]
+      to_node <- full_edges$to[k]
+      mod_misspec[from_node, to_node] <-
+        mod_misspec[to_node, from_node] <-
+        full_edges$modified_edges[k]
 
       # Check the positive definiteness of I - omega
       eigen_vals <- eigen((diag(nrow(mod_misspec)) - mod_misspec), symmetric = TRUE)$values
-
-      # Flag to check if all networks for this starting point are positive definite
-      all_positive_definite <- TRUE
 
       if (all(eigen_vals > 0)) {
         # Store the positive definite network

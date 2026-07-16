@@ -110,7 +110,7 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_
   # wrap fitting in with_progress() so progressor signals from the
   # inner functions are caught and displayed
   fit_runner <- function() {
-    message("Obtaining misspecified model fit distribution...")
+    if (progressbar) message("Obtaining misspecified model fit distribution...")
     misspec <- ggm_fit_misspec(
       net = net, iter = iter, n = n,
       adj_net = adj_net, prop_pos = prop_pos,
@@ -121,7 +121,7 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_
       manual_size = manual_size
     )
 
-    message("Obtaining true model fit distribution...")
+    if (progressbar) message("Obtaining true model fit distribution...")
     true_fit <- ggm_fit_true(
       net = net, iter = iter, n = n, adj_net = adj_net,
       ordinal = ordinal, n_levels = n_levels, skew_factor = skew_factor,
