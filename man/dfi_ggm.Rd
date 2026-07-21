@@ -6,7 +6,7 @@
 \usage{
 dfi_ggm(
   net,
-  power = 0.95,
+  specificity = 0.95,
   n_misspec = 3,
   iter = 500,
   n = 500,
@@ -25,25 +25,27 @@ dfi_ggm(
 \arguments{
 \item{net}{The empirical network to estimate dynamic fit index cutoffs for; Input should be a matrix}
 
-\item{power}{The power that the cutoff value aims for}
+\item{specificity}{Numeric. The specificity (1 - \eqn{\alpha}, the true-negative rate against the
+correctly-specified model) that the cutoff value aims for. Defaults to 0.95, i.e.
+cutoffs are placed so that 95\% of correctly-specified simulated models pass.}
 
 \item{n_misspec}{Number of mis-specified model you want in the simulation. Default to 3, meaning
 there are five mis-specified models with 1, 2, ..., 5 extra edges respectively.
 Avoid setting too large numbers. Otherwise the simulation might fail or take too long.}
 
-\item{iter}{The number of iterations used in your simulation.}
+\item{iter}{Integer. The number of iterations used in your simulation.}
 
-\item{n}{Your sample size}
+\item{n}{Integer. Sample size}
 
-\item{prop_pos}{Decide the proportion of positive in the extra edges added to the empirical network to create the mis-specified network}
+\item{prop_pos}{Numeric data between 0-1. Decide the proportion of positive in the extra edges added to the empirical network to create the mis-specified network}
 
 \item{ordinal}{Logical; should ordinal data be generated?}
 
-\item{n_levels}{Number of levels used in ordinal data.}
+\item{n_levels}{Integer; number of levels used in ordinal data.}
 
-\item{skew_factor}{How skewed should ordinal data be? 1 indicates uniform data and higher values increase skewedness.}
+\item{skew_factor}{Numeric; How skewed should ordinal data be? 1 indicates uniform data and higher values increase skewedness.}
 
-\item{size_extra}{How to size the extra edges added to create misspecified models.
+\item{size_extra}{Character; How to size the extra edges added to create misspecified models.
 One of "beta_min" (default) or "manual". "beta_min" uses the minimum detectable
 partial correlation from LASSO theory (Buhlmann & Van De Geer, 2011),
 sqrt(log(p) / n) / Theta_ii, evaluated at the node the edge is added from.
@@ -92,7 +94,7 @@ options(future.globals.maxSize = 2 * 1024^3)
 dfi_bfi <- dfi_ggm(
   bfi_net,
   ncores = 1,
-  power = 0.80,
+  specificity = 0.80,
   iter = 200,
   n_misspec = 2
 )

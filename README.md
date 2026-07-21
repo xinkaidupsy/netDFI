@@ -46,7 +46,7 @@ options(future.globals.maxSize = 2 * 1024^3)
 dfi_bfi <- dfi_ggm(
   bfi_net, 
   ncores = 1, 
-  power = 0.80, 
+  specificity = 0.80, 
   iter = 200,
   n_misspec = 2
 )

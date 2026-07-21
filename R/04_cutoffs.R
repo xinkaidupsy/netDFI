@@ -3,14 +3,16 @@
 #' This function determines the dynamic fit index cutoffs for Gaussian Graphical Models (GGM)
 #'
 #' @param net The empirical network to estimate dynamic fit index cutoffs for; Input should be a matrix
-#' @param power The power that the cutoff value aims for
-#' @param iter The number of iterations used in your simulation.
-#' @param n Your sample size
-#' @param prop_pos Decide the proportion of positive in the extra edges added to the empirical network to create the mis-specified network
+#' @param specificity Numeric. The specificity (1 - \eqn{\alpha}, the true-negative rate against the
+#'   correctly-specified model) that the cutoff value aims for. Defaults to 0.95, i.e.
+#'   cutoffs are placed so that 95\% of correctly-specified simulated models pass.
+#' @param iter Integer. The number of iterations used in your simulation.
+#' @param n Integer. Sample size
+#' @param prop_pos Numeric data between 0-1. Decide the proportion of positive in the extra edges added to the empirical network to create the mis-specified network
 #' @param ordinal Logical; should ordinal data be generated?
-#' @param n_levels Number of levels used in ordinal data.
-#' @param skew_factor How skewed should ordinal data be? 1 indicates uniform data and higher values increase skewedness.
-#' @param size_extra How to size the extra edges added to create misspecified models.
+#' @param n_levels Integer; number of levels used in ordinal data.
+#' @param skew_factor Numeric; How skewed should ordinal data be? 1 indicates uniform data and higher values increase skewedness.
+#' @param size_extra Character; How to size the extra edges added to create misspecified models.
 #'   One of "beta_min" (default) or "manual". "beta_min" uses the minimum detectable
 #'   partial correlation from LASSO theory (Buhlmann & Van De Geer, 2011),
 #'   sqrt(log(p) / n) / Theta_ii, evaluated at the node the edge is added from.
@@ -56,7 +58,7 @@
 #' dfi_bfi <- dfi_ggm(
 #'   bfi_net,
 #'   ncores = 1,
-#'   power = 0.80,
+#'   specificity = 0.80,
 #'   iter = 200,
 #'   n_misspec = 2
 #' )
@@ -66,7 +68,7 @@
 #' p <- plot(dfi_bfi)
 #' p[[1]]
 #' }
-dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_pos = 0.8,
+dfi_ggm <- function(net, specificity = 0.95, n_misspec = 3, iter = 500, n = 500, prop_pos = 0.8,
                     ordinal = FALSE, n_levels = 4, skew_factor = 1,
                     size_extra = c("beta_min", "manual"), manual_size = 0.2,
                     type = c("uniform", "random"), missing = 0, ncores = 1, progressbar = TRUE) {
@@ -153,7 +155,7 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_
   # find the 0-95th percentile in the fit dist of misspec model;
   # this is to find the value that shows better fit than 95% of the values in the misspec dist
   # 95% percentile of TLI & CFI; 5% of RMSEA
-  # ideally these values also performs worse than 95% of the values in the true distribution (if power = 0.95)
+  # ideally these values also performs worse than 95% of the values in the true distribution (if specificity = 0.95)
   misspec_sum <- par_fun(misspec_fit, function(df) {
     reframe(df,
       TLI_M = stats::quantile(TLI_M, c(seq(0.95, 0, -0.01)), na.rm = TRUE),
@@ -163,16 +165,16 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_
     )
   })
 
-  # find in the true distribution the value that marks power = power
+  # find in the true distribution the value that marks the target specificity
   true_cut <- true_fit %>%
     reframe(
-      TLI_T = stats::quantile(TLI_T, c(1 - power)),
-      RMSEA_T = stats::quantile(RMSEA_T, c(power)),
-      CFI_T = stats::quantile(CFI_T, c(1 - power)),
-      SRMR_T = stats::quantile(SRMR_T, c(power))
+      TLI_T = stats::quantile(TLI_T, c(1 - specificity)),
+      RMSEA_T = stats::quantile(RMSEA_T, c(specificity)),
+      CFI_T = stats::quantile(CFI_T, c(1 - specificity)),
+      SRMR_T = stats::quantile(SRMR_T, c(specificity))
     )
 
-  # calculate sensitivity based on misspec dist & power
+  # calculate sensitivity based on misspec dist & specificity
   final <- par_fun(1:length(misspec_fit), function(i) {
     # Create data frame directly
     fit_i <- data.frame(misspec_sum[[i]], true_cut, Power = seq(.95, 0.0, -.01))
@@ -269,7 +271,7 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_
     )]
   })
 
-  # find the power percentile for true
+  # find the specificity percentile for true
   true_sum <- true_fit %>%
     reframe(
       TLI_T = stats::quantile(TLI_T, c(seq(0.05, 1, 0.01))),
@@ -277,7 +279,7 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_
       CFI_T = stats::quantile(CFI_T, c(seq(0.05, 1, 0.01))),
       SRMR_T = stats::quantile(SRMR_T, c(seq(0.95, 0, -0.01)))
     ) %>%
-    mutate(Power = seq(.95, 0.0, -.01))
+    mutate(Specificity = seq(.95, 0.0, -.01))
 
   # HB cutoffs
   true_sum$TLI_HB <- 0.95
@@ -285,47 +287,47 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_
   true_sum$CFI_HB <- 0.95
   true_sum$SRMR_HB <- 0.08
 
-  # HB power
+  # HB specificity
   true_sum$TLI_HB_spec <- ifelse(true_sum$TLI_T >= 0.95, 1, 0)
   true_sum$RMSEA_HB_spec <- ifelse(true_sum$RMSEA_T <= 0.05, 1, 0)
   true_sum$CFI_HB_spec <- ifelse(true_sum$CFI_T >= 0.95, 1, 0)
   true_sum$SRMR_HB_spec <- ifelse(true_sum$SRMR_T <= 0.08, 1, 0)
 
-  # calculate the sensitivity of HB cutoffs
+  # calculate the specificity of HB cutoffs
   tli_HB <- true_sum %>%
-    filter(!duplicated(TLI_HB_spec) | Power == 0) %>%
-    select(TLI_HB, Power, TLI_HB_spec) %>%
-    filter(TLI_HB_spec == 1 | Power == 0) %>%
-    select(TLI_HB, Power) %>%
-    `colnames<-`(c("TLI_HB", "power_tli_HB"))
+    filter(!duplicated(TLI_HB_spec) | Specificity == 0) %>%
+    select(TLI_HB, Specificity, TLI_HB_spec) %>%
+    filter(TLI_HB_spec == 1 | Specificity == 0) %>%
+    select(TLI_HB, Specificity) %>%
+    `colnames<-`(c("TLI_HB", "specificity_tli_HB"))
 
   rmsea_HB <- true_sum %>%
-    filter(!duplicated(RMSEA_HB_spec) | Power == 0) %>%
-    select(RMSEA_HB, Power, RMSEA_HB_spec) %>%
-    filter(RMSEA_HB_spec == 1 | Power == 0) %>%
-    select(RMSEA_HB, Power) %>%
-    `colnames<-`(c("RMSEA_HB", "power_rmsea_HB"))
+    filter(!duplicated(RMSEA_HB_spec) | Specificity == 0) %>%
+    select(RMSEA_HB, Specificity, RMSEA_HB_spec) %>%
+    filter(RMSEA_HB_spec == 1 | Specificity == 0) %>%
+    select(RMSEA_HB, Specificity) %>%
+    `colnames<-`(c("RMSEA_HB", "specificity_rmsea_HB"))
 
   cfi_HB <- true_sum %>%
-    filter(!duplicated(CFI_HB_spec) | Power == 0) %>%
-    select(CFI_HB, Power, CFI_HB_spec) %>%
-    filter(CFI_HB_spec == 1 | Power == 0) %>%
-    select(CFI_HB, Power) %>%
-    `colnames<-`(c("CFI_HB", "power_cfi_HB"))
+    filter(!duplicated(CFI_HB_spec) | Specificity == 0) %>%
+    select(CFI_HB, Specificity, CFI_HB_spec) %>%
+    filter(CFI_HB_spec == 1 | Specificity == 0) %>%
+    select(CFI_HB, Specificity) %>%
+    `colnames<-`(c("CFI_HB", "specificity_cfi_HB"))
 
   srmr_HB <- true_sum %>%
-    filter(!duplicated(SRMR_HB_spec) | Power == 0) %>%
-    select(SRMR_HB, Power, SRMR_HB_spec) %>%
-    filter(SRMR_HB_spec == 1 | Power == 0) %>%
-    select(SRMR_HB, Power) %>%
-    `colnames<-`(c("SRMR_HB", "power_srmr_HB"))
+    filter(!duplicated(SRMR_HB_spec) | Specificity == 0) %>%
+    select(SRMR_HB, Specificity, SRMR_HB_spec) %>%
+    filter(SRMR_HB_spec == 1 | Specificity == 0) %>%
+    select(SRMR_HB, Specificity) %>%
+    `colnames<-`(c("SRMR_HB", "specificity_srmr_HB"))
 
   # L0 specificity to misspecification
   L0 <- cbind(
-    true_cut$TLI_T, power,
-    true_cut$RMSEA_T, power,
-    true_cut$CFI_T, power,
-    true_cut$SRMR_T, power,
+    true_cut$TLI_T, specificity,
+    true_cut$RMSEA_T, specificity,
+    true_cut$CFI_T, specificity,
+    true_cut$SRMR_T, specificity,
     tli_HB[1, ], rmsea_HB[1, ], cfi_HB[1, ], srmr_HB[1, ]
   ) %>%
     `names<-`(c(
@@ -362,8 +364,8 @@ dfi_ggm <- function(net, power = 0.95, n_misspec = 3, iter = 500, n = 500, prop_
     }
   }
 
-  res$cutoff_true <- L0 # this is the cutoff that marks power = power
-  res$cutoff_misspec <- Ls # these are the cutoff that marks sensitivity & power = power;
+  res$cutoff_true <- L0 # this is the cutoff that marks the target specificity
+  res$cutoff_misspec <- Ls # these are the cutoffs that mark sensitivity & the target specificity;
   # this is the best fitting value in misspec that is still lower than the worst fitting value in true
 
   # assign class to summarize
