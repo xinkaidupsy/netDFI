@@ -14,7 +14,7 @@ dfi_ggm(
   ordinal = FALSE,
   n_levels = 4,
   skew_factor = 1,
-  size_extra = c("beta_min", "manual"),
+  size_extra = c("manual", "beta_min"),
   manual_size = 0.2,
   type = c("uniform", "random"),
   missing = 0,
@@ -46,7 +46,7 @@ Avoid setting too large numbers. Otherwise the simulation might fail or take too
 \item{skew_factor}{Numeric; How skewed should ordinal data be? 1 indicates uniform data and higher values increase skewedness.}
 
 \item{size_extra}{Character; How to size the extra edges added to create misspecified models.
-One of "beta_min" (default) or "manual". "beta_min" uses the minimum detectable
+One of "beta_min" or "manual" (default). "beta_min" uses the minimum detectable
 partial correlation from LASSO theory (Buhlmann & Van De Geer, 2011),
 sqrt(log(p) / n) / Theta_ii, evaluated at the node the edge is added from.
 "manual" uses a fixed magnitude given by \code{manual_size}.}
