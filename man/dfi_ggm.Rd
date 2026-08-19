@@ -68,44 +68,48 @@ An object of class dfi_ggm. Can use summary to view a summary of results
 }
 \description{
 This function determines the dynamic fit index cutoffs for Gaussian Graphical Models (GGM)
+following the algorithm developed in Du and Epskamp (2026).
 }
 \examples{
-\dontrun{
-library(psych)
-library(psychonetrics)
-library(dplyr)
-library(netDFI)
+\donttest{
+if (requireNamespace("psych", quietly = TRUE)) {
+  library(psychonetrics)
+  library(dplyr)
 
-# get the big five inventory data from psych
-data(bfi)
+  # get the big five inventory data from psych
+  data("bfi", package = "psych")
 
-# estimate ggm
-bfi_mod <- ggm(bfi) \%>\%
-  prune() \%>\%
-  runmodel()
+  # estimate ggm
+  bfi_mod <- ggm(bfi) \%>\%
+    prune() \%>\%
+    runmodel()
 
-# obtain the partial correlation matrix
-bfi_net <- getmatrix(bfi_mod, "omega")
+  # obtain the partial correlation matrix
+  bfi_net <- getmatrix(bfi_mod, "omega")
 
-# allow future_apply to use more memory
-options(future.globals.maxSize = 2 * 1024^3)
+  # allow future_apply to use more memory
+  options(future.globals.maxSize = 2 * 1024^3)
 
-# run dfi
-dfi_bfi <- dfi_ggm(
-  bfi_net,
-  ncores = 1,
-  specificity = 0.80,
-  iter = 200,
-  n_misspec = 2
-)
-dfi_bfi
+  # run dfi
+  dfi_bfi <- dfi_ggm(
+    bfi_net,
+    ncores = 1,
+    specificity = 0.80,
+    iter = 200,
+    n_misspec = 2
+  )
+  dfi_bfi
 
-# plot results
-p <- plot(dfi_bfi)
-p[[1]]
+  # plot results
+  p <- plot(dfi_bfi)
+  p[[1]]
 }
+}
+}
+\references{
+Du, X., & Epskamp, S. (2026). Dynamical fit index cutoffs for Gaussian
+graphical models. \emph{PsyArXiv}. \url{https://doi.org/10.31234/osf.io/5wj2y_v2}
 }
 \author{
-Xinkai Du
-Maintainer: Xinkai Du <xinkai.du.xd@gmail.com>
+Xinkai Du \email{xinkai.du.xd@gmail.com}
 }

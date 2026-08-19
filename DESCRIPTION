@@ -10,9 +10,10 @@ Authors@R: c(
       comment = c(ORCID = "0000-0002-4158-7878")
     )
   )
-Description: Implement methods to determine the dynamic fit index cutoffs for 
-  network models. The package allows users to evaluate model fit based on their 
-  own model statement, model type, and sample size. 
+Description: Implement methods to determine the dynamic fit index cutoffs for
+  network models. The package allows users to evaluate model fit based on their
+  own model statement, model type, and sample size. Methods are described in
+  Du and Epskamp (2026) <doi:10.31234/osf.io/5wj2y_v2>.
 License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
@@ -30,5 +31,4 @@ Imports:
     patchwork
 Suggests:
     psych
-Config/roxygen2/version: 8.0.0
-RoxygenNote: 7.3.2
+Config/roxygen2/version: 8.1.0

@@ -6,7 +6,7 @@
 \alias{netDFI-package}
 \title{netDFI: Dynamic Fit Index for Network Models}
 \description{
-Implement methods to determine the dynamic fit index cutoffs for network models. The package allows users to evaluate model fit based on their own model statement, model type, and sample size.
+Implement methods to determine the dynamic fit index cutoffs for network models. The package allows users to evaluate model fit based on their own model statement, model type, and sample size. Methods are described in Du and Epskamp (2026) \doi{10.31234/osf.io/5wj2y_v2}.
 }
 \seealso{
 Useful links:
@@ -18,6 +18,11 @@ Useful links:
 }
 \author{
 \strong{Maintainer}: Xinkai Du \email{xinkai.du.xd@gmail.com} (\href{https://orcid.org/0000-0002-4158-7878}{ORCID})
+
+Authors:
+\itemize{
+  \item Xinkai Du \email{xinkai.du.xd@gmail.com} (\href{https://orcid.org/0000-0002-4158-7878}{ORCID})
+}
 
 }
 \keyword{internal}
