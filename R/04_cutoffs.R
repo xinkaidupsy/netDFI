@@ -33,7 +33,7 @@
 #'
 #' @references
 #' Du, X., & Epskamp, S. (2026). Dynamical fit index cutoffs for Gaussian
-#' graphical models. \emph{PsyArXiv}. \url{https://doi.org/10.31234/osf.io/5wj2y_v2}
+#' graphical models. \emph{PsyArXiv}. \doi{10.31234/osf.io/5wj2y_v2}
 #'
 #' @author Xinkai Du \email{xinkai.du.xd@gmail.com}
 #'
